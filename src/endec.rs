@@ -75,6 +75,7 @@ mod tests {
         let encoder = DnsEndec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
+        assert_eq!(domain, "jbswy3dpfqqfo33snrscc.example.com");
         let decoded = encoder.decode(&domain)?;
         assert_eq!(data.to_vec(), decoded);
         Ok(())
@@ -121,10 +122,10 @@ mod tests {
         let random_uppercase_domain = domain
             .chars()
             .map(|c| {
-                if c.is_ascii_lowercase() {
+                if rand::random() {
                     c.to_ascii_uppercase()
                 } else {
-                    c
+                    c.to_ascii_lowercase()
                 }
             })
             .collect::<String>();
