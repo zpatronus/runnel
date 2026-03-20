@@ -6,4 +6,5 @@ version = "0.1.0"
 [dependencies]
 anyhow = "1.0.102"
 base32 = "0.5.1"
+rand = "0.10.0"
 tokio = {version = "1.50.0", features = ["full"]}
