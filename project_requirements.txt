@@ -1,0 +1,89 @@
+98-008 Student-Defined Project (Spring 2026)
+Overview
+Have an idea you are passionate about? You may choose to develop your own Rust project instead of doing the remaining homework! All we ask is that you create something of interest to you or that you solve an actual problem. Strive to make something that outlives this course!
+
+Over a couple weeks, you will propose a project idea and develop a robust, well-documented codebase to showcase your project. 
+Requirements
+Complexity
+Your project should entail significantly more time and effort than the labs, and it should amount to at least four weeks worth of consistent time commitment.
+
+❌Examples that do NOT meet the complexity requirement: 
+Number guessing game, simple todo list app, basic calculator, Brainfuck, GrepLab
+
+
+✔️Examples that CAN meet the complexity requirement:
+Chess engine, terrain generator, news scraper app, Discord bot (serenity/poise), Proxy Lab / Shell Lab (from 15-213), small programming language interpreter (section II.4 through II.9 of this book)
+Collaboration
+It’s even more fun to work together with a friend! Collaboration is allowed and encouraged, as long as you ask us beforehand. However, we expect more effort the more students there are in your team, with roughly equal contributions.
+Version Control
+You must use Git version control to regularly commit and push your changes to a public repository on a forge like GitHub or Codeberg. If you don’t know how to do this, check online or ask us for help!
+Code Requirements
+Must be written in Rust
+You may use other languages too, but most of your project must be in Rust
+At least 3 structs and/or enums, and at least 5 functions throughout your codebase
+Multiple uses of a single generic function do not count
+You must manually implement at least one trait (e.g., Display, From, or a custom trait) for one of your types
+Trait methods and functions in impl blocks count toward your 5 functions
+Auto-derived traits (like #[derive(Debug, Clone)]) do not satisfy this requirement
+Uses at least one of Vec, HashMap, or other std data structure
+Uses Option and/or Result
+Your code is split up into 2 or more modules and/or crates
+lib crates count, but not test modules/crates
+Testing: Your code is covered by test cases (doc, unit, or integration tests)
+You must maintain a minimum of 50% line coverage as measured by cargo-llvm-cov.
+Documentation: Functions, structs, traits, etc have appropriate Rustdoc comments in Markdown with doc tests
+Run cargo doc --document-private-items to generate doc pages from your comments
+Error handling: Must use one of thiserror, anyhow, or custom-defined error structs/enums
+Ecosystem breadth: Meets at least two of these categories using other crates:
+Entry points: Your program provides an interface via CLI arguments, environment variables, or a web server (e.g., dotenvy, clap, axum, actix-web).
+External integration: Your program interacts with external environments or services (e.g., reqwest, sqlx, diesel, sea-orm, fred)
+Data processing: Your program processes or transforms data (e.g., serde, serde_json, csv, regex, image)
+Async: Your program uses an async runtime (e.g., tokio, smol) and implements asynchronous or parallel logic using tools like futures, tokio::spawn, rayon, or channels.
+
+These requirements should be met in a meaningful way, not just for the sake of including Rust features in your code. For example, you shouldn't use a Vec to store a single value, or use an enum if a bool would suffice. Your code should reflect an idiomatic approach to Rust’s type system and ownership model.
+Advanced Rust (Up to 100 pts extra credit for any of these)
+Uses smart pointers
+Uses unsafe code
+With explanations proving the safety of your unsafe code, like in 15-122
+Uses foreign function interfaces
+
+Again, if you choose to do these, use them in a meaningful way! For example, don’t use unsafe code over safe Rust unless it provides a significant benefit to your project.
+Rubric (550 pts)
+Project Proposal (50 pts)
+To be submitted on a Gradescope form
+Describe your project idea
+Either create a new project or significantly improve an existing one
+Add a link to a public repository using your favorite version control platform like GitHub, Codeberg, etc that you will commit and push changes to
+If you receive a full score, then that means your idea is approved
+Otherwise, read the comments and resubmit
+It’s okay if your project changes from what you originally proposed as long as it meets the requirements; just make sure to let us know
+Checkpoints (50 pts × 2)
+To be submitted on Gradescope forms
+Briefly describe what progress you have made since the prior week
+Make sure you commit and push your changes regularly
+We will spot check your repository to see if you have made progress
+Final Submission (400 pts)
+Your final submission will be graded holistically based on the following criteria.
+Code does what your project intends to do with minimal bugs
+All code requirements are met
+Extra credit for using advanced Rust topics
+Sufficiently complex (at least four weeks of time commitment)
+There will be significant point deductions if your project is not complex enough. If you are unsure, ask us!
+Likewise, we will award extra credit if your project goes beyond our expectations!
+Generally good code design, style, and methodology
+Passes rustfmt and clippy checks
+Has a README.md
+Explains what your project does
+Explains how to use your project
+Includes relevant screenshots and/or a video of your project in action
+Regular, on-time commits on your repository; not just all done at the last minute
+Academic Integrity
+We encourage asking other students, search engines, or AI to find crates/docs, identify bugs, and help you better understand Rust as a whole. However, plagiarizing from other sources, reusing a Rust project you already completed before, or using AI to vibecode your entire project is forbidden. 
+
+
+We reserve the right to ask follow up questions and/or deduct points if we suspect that any part of your project was not made by you during the semester.
+
+Now go on and make something awesome! <3
+
+
+

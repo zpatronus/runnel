@@ -1,0 +1,3 @@
+- Week 1: udp communication + base64/32 encoding of content
+- Week 2: Complete phase 1 - short request and response with DNS tunneling
+- Week 3: Complete phase 2 - long request and response with DNS tunneling
