@@ -4,4 +4,4 @@
 
 ## For 98-008 Teaching Group
 
-[Week 1 Check Point](./)
+[Week 1 Check Point](https://github.com/zpatronus/runnel/tree/week1-checkpoint)
