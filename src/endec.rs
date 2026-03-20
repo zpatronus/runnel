@@ -14,15 +14,22 @@ impl DnsEndec {
         if suffix.len() > 253 {
             bail!("Suffix too long");
         }
+
         if suffix.is_empty() || suffix.ends_with('.') {
             bail!("Suffix must not be empty or end with a dot");
         }
 
-        Ok(Self {
+        let endec = Self {
             suffix: suffix.to_string().to_lowercase(),
             max_label_len: 63,
             max_total_len: 253,
-        })
+        };
+
+        if endec.max_data_len() < 1 {
+            bail!("Suffix too long to allow any data encoding");
+        }
+
+        Ok(endec)
     }
 
     pub fn encode(&self, data: &[u8]) -> Result<String> {
@@ -64,6 +71,13 @@ impl DnsEndec {
             .ok_or_else(|| anyhow::anyhow!("Invalid base32 encoding"))?;
         Ok(bytes)
     }
+
+    pub fn max_data_len(&self) -> usize {
+        let available_len = self.max_total_len - self.suffix.len() - 1;
+        let max_chars = (available_len / 64) * 63 + (available_len % 64);
+
+        (max_chars) * 5 / 8
+    }
 }
 
 #[cfg(test)]
@@ -82,10 +96,18 @@ mod tests {
     }
 
     #[test]
-    fn test_endec_bad_suffix() {
+    fn test_endec_bad_suffix() -> Result<()> {
         assert!(DnsEndec::new("").is_err());
         assert!(DnsEndec::new("example.com.").is_err());
         assert!(DnsEndec::new(&"a".repeat(254)).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_endec_suffix_too_long() -> Result<()> {
+        let long_suffix = "a".repeat(247) + ".com";
+        assert!(DnsEndec::new(&long_suffix).is_err());
+        Ok(())
     }
 
     #[test]
@@ -131,6 +153,22 @@ mod tests {
             .collect::<String>();
         let decoded = encoder.decode(&random_uppercase_domain)?;
         assert_eq!(data.to_vec(), decoded);
+        Ok(())
+    }
+
+    #[test]
+    fn test_size() -> Result<()> {
+        for i in 1..100 {
+            let middle: Vec<&str> = (0..i).map(|_| "a").collect();
+            let suffix = format!("{}.com", middle.join("."));
+            let encoder = DnsEndec::new(&suffix)?;
+            let max_size = encoder.max_data_len();
+            let success_data = vec![0u8; max_size];
+            let unsuccess_data = vec![0u8; max_size + 1];
+            assert!(encoder.encode(&success_data).is_ok());
+            assert!(encoder.encode(&unsuccess_data).is_err());
+        }
+
         Ok(())
     }
 }
