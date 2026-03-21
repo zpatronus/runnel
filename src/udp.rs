@@ -67,7 +67,7 @@ impl Reply {
 }
 
 #[cfg(test)]
-mod tests {
+mod udp_tests {
     use super::*;
     use std::time::Duration;
     use tokio::time::timeout;

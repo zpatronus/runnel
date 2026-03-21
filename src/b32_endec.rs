@@ -3,24 +3,30 @@ use std::fmt::format;
 use anyhow::{Ok, Result, bail};
 use base32::encode;
 
-pub struct DnsEndec {
+pub struct B32Endec {
     suffix: String,
     max_label_len: usize,
     max_total_len: usize,
 }
 
-impl DnsEndec {
+impl B32Endec {
     pub fn new(suffix: &str) -> Result<Self> {
-        if suffix.len() > 253 {
+        let suffix_with_dot = if !suffix.ends_with(".") {
+            format!("{}.", suffix)
+        } else {
+            suffix.to_string()
+        };
+
+        if suffix_with_dot.len() > 253 {
             bail!("Suffix too long");
         }
 
-        if suffix.is_empty() || suffix.ends_with('.') {
-            bail!("Suffix must not be empty or end with a dot");
+        if suffix_with_dot.len() == 1 {
+            bail!("Suffix must not be empty");
         }
 
         let endec = Self {
-            suffix: suffix.to_string().to_lowercase(),
+            suffix: suffix_with_dot.to_lowercase(),
             max_label_len: 63,
             max_total_len: 253,
         };
@@ -58,7 +64,11 @@ impl DnsEndec {
     }
 
     pub fn decode(&self, domain: &str) -> Result<Vec<u8>> {
-        let domain = domain.to_lowercase();
+        let mut domain = domain.to_lowercase();
+        if !domain.ends_with('.') {
+            domain = format!("{}.", domain);
+        }
+
         if !domain.ends_with(&format!(".{}", self.suffix)) {
             bail!("Domain does not end with the expected suffix");
         }
@@ -81,38 +91,38 @@ impl DnsEndec {
 }
 
 #[cfg(test)]
-mod tests {
+mod b32_endec_tests {
     use super::*;
 
     #[test]
     fn test_endec_success() -> Result<()> {
-        let encoder = DnsEndec::new("example.com")?;
+        let encoder = B32Endec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
-        assert_eq!(domain, "jbswy3dpfqqfo33snrscc.example.com");
+        assert_eq!(domain, "jbswy3dpfqqfo33snrscc.example.com.");
         let decoded = encoder.decode(&domain)?;
         assert_eq!(data.to_vec(), decoded);
         Ok(())
     }
 
     #[test]
-    fn test_endec_bad_suffix() -> Result<()> {
-        assert!(DnsEndec::new("").is_err());
-        assert!(DnsEndec::new("example.com.").is_err());
-        assert!(DnsEndec::new(&"a".repeat(254)).is_err());
+    fn test_endec_kinds_of_suffix() -> Result<()> {
+        assert!(B32Endec::new("").is_err());
+        assert!(B32Endec::new("example.com.").is_ok());
+        assert!(B32Endec::new(&"a".repeat(254)).is_err());
         Ok(())
     }
 
     #[test]
     fn test_endec_suffix_too_long() -> Result<()> {
-        let long_suffix = "a".repeat(247) + ".com";
-        assert!(DnsEndec::new(&long_suffix).is_err());
+        let long_suffix = "a".repeat(246) + ".com";
+        assert!(B32Endec::new(&long_suffix).is_err());
         Ok(())
     }
 
     #[test]
     fn test_encoder_too_long() -> Result<()> {
-        let encoder = DnsEndec::new("example.com")?;
+        let encoder = B32Endec::new("example.com")?;
         let data = vec![0u8; 200];
         assert!(encoder.encode(&data).is_err());
         Ok(())
@@ -120,17 +130,17 @@ mod tests {
 
     #[test]
     fn test_decoder_wrong_suffix() -> Result<()> {
-        let encoder = DnsEndec::new("example.com")?;
+        let encoder = B32Endec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
-        let decoder = DnsEndec::new("other.com")?;
+        let decoder = B32Endec::new("other.com")?;
         assert!(decoder.decode(&domain).is_err());
         Ok(())
     }
 
     #[test]
     fn test_decoder_invalid_base32() -> Result<()> {
-        let decoder = DnsEndec::new("example.com")?;
+        let decoder = B32Endec::new("example.com")?;
         let domain = "!.example.com";
         assert!(decoder.decode(domain).is_err());
         Ok(())
@@ -138,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_invariant_to_random_uppercase() -> Result<()> {
-        let encoder = DnsEndec::new("example.com")?;
+        let encoder = B32Endec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
         let random_uppercase_domain = domain
@@ -161,7 +171,7 @@ mod tests {
         for i in 1..100 {
             let middle: Vec<&str> = (0..i).map(|_| "a").collect();
             let suffix = format!("{}.com", middle.join("."));
-            let encoder = DnsEndec::new(&suffix)?;
+            let encoder = B32Endec::new(&suffix)?;
             let max_size = encoder.max_data_len();
             let success_data = vec![0u8; max_size];
             let unsuccess_data = vec![0u8; max_size + 1];
