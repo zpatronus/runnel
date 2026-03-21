@@ -1,8 +1,7 @@
 use crate::b32_endec::B32Endec;
 use anyhow::Result;
 use hickory_proto::op::{message::Message, query::Query};
-use hickory_proto::rr::domain::Name;
-use hickory_proto::rr::record_type::RecordType;
+use hickory_proto::rr::{domain::Name, record_type::RecordType};
 use std::str::FromStr;
 
 pub struct DnsRequest {
