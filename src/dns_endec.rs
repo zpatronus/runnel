@@ -1,11 +1,11 @@
-use crate::b32_endec::B32Endec;
+use crate::b32_endec::{B32DomainEndec, B32ResponseEndec};
 use anyhow::Result;
 use hickory_proto::op::{message::Message, query::Query};
 use hickory_proto::rr::{domain::Name, record_type::RecordType};
 use std::str::FromStr;
 
 pub struct DnsRequest {
-    b32_endec: B32Endec,
+    b32_domain_endec: B32DomainEndec,
 }
 
 impl DnsRequest {
@@ -16,12 +16,12 @@ impl DnsRequest {
             domain_suffix.to_string()
         };
         Ok(Self {
-            b32_endec: B32Endec::new(&domain_suffix_with_dot)?,
+            b32_domain_endec: B32DomainEndec::new(&domain_suffix_with_dot)?,
         })
     }
 
     pub fn encode_packet(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let domain = self.b32_endec.encode(data)?;
+        let domain = self.b32_domain_endec.encode(data)?;
         let name = Name::from_str(&domain)?;
         let query = Query::query(name, RecordType::TXT);
         let mut message = Message::new();
@@ -37,9 +37,25 @@ impl DnsRequest {
             .ok_or_else(|| anyhow::anyhow!("No query in packet"))?;
         let name = query.name();
         let domain = name.to_utf8();
-        let data = self.b32_endec.decode(&domain)?;
+        let data = self.b32_domain_endec.decode(&domain)?;
 
         Ok(data)
+    }
+}
+
+pub struct DnsResponse {
+    b32_response_endec: B32ResponseEndec,
+}
+
+impl DnsResponse {
+    pub fn new() -> Self {
+        Self {
+            b32_response_endec: B32ResponseEndec::new(),
+        }
+    }
+
+    pub fn encode_packet(&self, data: &[u8]) -> Result<Vec<u8>> {
+        todo!();
     }
 }
 

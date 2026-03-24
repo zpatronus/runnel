@@ -3,13 +3,13 @@ use std::fmt::format;
 use anyhow::{Ok, Result, bail};
 use base32::encode;
 
-pub struct B32Endec {
+pub struct B32DomainEndec {
     suffix: String,
     max_label_len: usize,
     max_total_len: usize,
 }
 
-impl B32Endec {
+impl B32DomainEndec {
     pub fn new(suffix: &str) -> Result<Self> {
         let suffix_with_dot = if !suffix.ends_with(".") {
             format!("{}.", suffix)
@@ -90,13 +90,47 @@ impl B32Endec {
     }
 }
 
+pub struct B32ResponseEndec {
+    max_total_len: usize,
+}
+
+impl B32ResponseEndec {
+    pub fn new() -> Self {
+        Self { max_total_len: 253 }
+    }
+
+    pub fn max_data_len(&self) -> usize {
+        (self.max_total_len) * 5 / 8
+    }
+
+    pub fn encode(&self, data: &[u8]) -> Result<Vec<u8>> {
+        let encoded =
+            base32::encode(base32::Alphabet::Rfc4648 { padding: false }, data).to_lowercase();
+        if encoded.len() > self.max_total_len {
+            bail!(
+                "Data too long to encode in DNS response. Available: {}, Required: {}",
+                self.max_total_len,
+                encoded.len()
+            );
+        }
+        Ok(encoded.into_bytes())
+    }
+
+    pub fn decode(&self, content: &[u8]) -> Result<Vec<u8>> {
+        let encoded = std::str::from_utf8(content)?.to_uppercase();
+        let bytes = base32::decode(base32::Alphabet::Rfc4648 { padding: false }, &encoded)
+            .ok_or_else(|| anyhow::anyhow!("Invalid base32 encoding"))?;
+        Ok(bytes)
+    }
+}
+
 #[cfg(test)]
-mod b32_endec_tests {
+mod b32_domain_endec_tests {
     use super::*;
 
     #[test]
     fn test_endec_success() -> Result<()> {
-        let encoder = B32Endec::new("example.com")?;
+        let encoder = B32DomainEndec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
         assert_eq!(domain, "jbswy3dpfqqfo33snrscc.example.com.");
@@ -107,22 +141,22 @@ mod b32_endec_tests {
 
     #[test]
     fn test_endec_kinds_of_suffix() -> Result<()> {
-        assert!(B32Endec::new("").is_err());
-        assert!(B32Endec::new("example.com.").is_ok());
-        assert!(B32Endec::new(&"a".repeat(254)).is_err());
+        assert!(B32DomainEndec::new("").is_err());
+        assert!(B32DomainEndec::new("example.com.").is_ok());
+        assert!(B32DomainEndec::new(&"a".repeat(254)).is_err());
         Ok(())
     }
 
     #[test]
     fn test_endec_suffix_too_long() -> Result<()> {
         let long_suffix = "a".repeat(246) + ".com";
-        assert!(B32Endec::new(&long_suffix).is_err());
+        assert!(B32DomainEndec::new(&long_suffix).is_err());
         Ok(())
     }
 
     #[test]
     fn test_encoder_too_long() -> Result<()> {
-        let encoder = B32Endec::new("example.com")?;
+        let encoder = B32DomainEndec::new("example.com")?;
         let data = vec![0u8; 200];
         assert!(encoder.encode(&data).is_err());
         Ok(())
@@ -130,17 +164,17 @@ mod b32_endec_tests {
 
     #[test]
     fn test_decoder_wrong_suffix() -> Result<()> {
-        let encoder = B32Endec::new("example.com")?;
+        let encoder = B32DomainEndec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
-        let decoder = B32Endec::new("other.com")?;
+        let decoder = B32DomainEndec::new("other.com")?;
         assert!(decoder.decode(&domain).is_err());
         Ok(())
     }
 
     #[test]
     fn test_decoder_invalid_base32() -> Result<()> {
-        let decoder = B32Endec::new("example.com")?;
+        let decoder = B32DomainEndec::new("example.com")?;
         let domain = "!.example.com";
         assert!(decoder.decode(domain).is_err());
         Ok(())
@@ -148,7 +182,7 @@ mod b32_endec_tests {
 
     #[test]
     fn test_invariant_to_random_uppercase() -> Result<()> {
-        let encoder = B32Endec::new("example.com")?;
+        let encoder = B32DomainEndec::new("example.com")?;
         let data = b"Hello, World!";
         let domain = encoder.encode(data)?;
         let random_uppercase_domain = domain
@@ -171,7 +205,7 @@ mod b32_endec_tests {
         for i in 1..100 {
             let middle: Vec<&str> = (0..i).map(|_| "a").collect();
             let suffix = format!("{}.com", middle.join("."));
-            let encoder = B32Endec::new(&suffix)?;
+            let encoder = B32DomainEndec::new(&suffix)?;
             let max_size = encoder.max_data_len();
             let success_data = vec![0u8; max_size];
             let unsuccess_data = vec![0u8; max_size + 1];
@@ -179,6 +213,31 @@ mod b32_endec_tests {
             assert!(encoder.encode(&unsuccess_data).is_err());
         }
 
+        Ok(())
+    }
+}
+
+mod b32_response_endec_tests {
+    use super::*;
+
+    #[test]
+    fn test_endec_success() -> Result<()> {
+        let encoder = B32ResponseEndec::new();
+        let data = b"Hello, World!";
+        let encoded = encoder.encode(data)?;
+        let decoded = encoder.decode(&encoded)?;
+        assert_eq!(data.to_vec(), decoded);
+        Ok(())
+    }
+
+    #[test]
+    fn test_encode_length() -> Result<()> {
+        let encoder = B32ResponseEndec::new();
+        let max_data_len = encoder.max_data_len();
+        let data = vec![0u8; max_data_len];
+        assert!(encoder.encode(&data).is_ok());
+        let too_long_data = vec![0u8; max_data_len + 1];
+        assert!(encoder.encode(&too_long_data).is_err());
         Ok(())
     }
 }
