@@ -1,7 +1,4 @@
-use std::fmt::format;
-
 use anyhow::{Ok, Result, bail};
-use base32::encode;
 
 pub struct B32DomainEndec {
     suffix: String,

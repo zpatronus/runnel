@@ -90,9 +90,7 @@ impl DnsResponse {
         if answer.record_type() != RecordType::TXT {
             bail!("Expected TXT record in answer");
         }
-        let rdata = answer
-            .data()
-            .ok_or_else(|| anyhow::anyhow!("No data in answer"))?;
+        let rdata = answer.data();
         let txt = match rdata {
             RData::TXT(txt) => txt,
             _ => bail!("Expected TXT record in answer"),
