@@ -217,6 +217,7 @@ mod b32_domain_endec_tests {
     }
 }
 
+#[cfg(test)]
 mod b32_response_endec_tests {
     use super::*;
 
