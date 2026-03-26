@@ -57,7 +57,8 @@ impl DnsResponse {
         }
     }
 
-    pub fn encode_packet(&self, request: Message, response_data: &[u8]) -> Result<Vec<u8>> {
+    pub fn encode_packet(&self, request: &[u8], response_data: &[u8]) -> Result<Vec<u8>> {
+        let request = Message::from_vec(request)?;
         let id = request.id();
         let query = request
             .query()
@@ -154,8 +155,7 @@ mod dns_response_endec_tests {
         let request_data = b"Hello, DNS!";
         let request_packet = request_encoder.encode_packet(request_data)?;
         let response_data = b"Hello, Client!";
-        let response_packet =
-            response_encoder.encode_packet(Message::from_vec(&request_packet)?, response_data)?;
+        let response_packet = response_encoder.encode_packet(&request_packet, response_data)?;
         let decoded_response_data = response_encoder.decode_packet(&response_packet)?;
 
         assert_eq!(response_data.to_vec(), decoded_response_data);
@@ -184,8 +184,7 @@ mod dns_request_response_integration_tests {
             .rev()
             .cloned()
             .collect::<Vec<u8>>();
-        let response_packet =
-            response_encoder.encode_packet(Message::from_vec(&request_packet)?, &response_data)?;
+        let response_packet = response_encoder.encode_packet(&request_packet, &response_data)?;
         let received_response_data = response_encoder.decode_packet(&response_packet)?;
         let rev_received_response_data = received_response_data
             .iter()
