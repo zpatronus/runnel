@@ -27,6 +27,7 @@ impl DnsRequest {
         let name = Name::from_str(&domain)?;
         let query = Query::query(name, RecordType::TXT);
         let mut message = Message::new();
+        message.set_recursion_desired(true);
         message.add_query(query);
         let packet = message.to_vec()?;
         Ok(packet)
@@ -116,6 +117,8 @@ mod dns_request_endec_tests {
         let encoder = DnsRequest::new("example.com")?;
         let data = b"Hello, DNS!";
         let packet = encoder.encode_packet(data)?;
+        let message = Message::from_vec(&packet)?;
+        assert!(message.recursion_desired());
         let decoded_data = encoder.decode_packet(&packet)?;
 
         assert_eq!(data.to_vec(), decoded_data);
