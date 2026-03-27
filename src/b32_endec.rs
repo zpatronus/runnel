@@ -1,12 +1,23 @@
+//! Base32 encoding and decoding for DNS labels and responses.
 use anyhow::{Ok, Result, bail};
 
+/// A DNS encoder/decoder that encodes data into the labels of a domain name using base32 encoding, and decodes data from such a domain name.
 pub struct B32DomainEndec {
+    /// The domain suffix that will be appended to the encoded labels. The suffix must end with a dot and will be normalized to lowercase. The maximum length of the suffix is 253 characters (including the trailing dot), and it must not be empty.
     suffix: String,
+    /// The maximum length of a single label in a domain name, which is 63 characters according to DNS specifications.
     max_label_len: usize,
+    /// The maximum total length of a domain name, which is 253 characters according to DNS specifications (including the trailing dot).
     max_total_len: usize,
 }
 
 impl B32DomainEndec {
+    /// Creates a new `B32DomainEndec` with the specified domain suffix. The suffix must not be empty and must not exceed 253 characters (including the trailing dot). The suffix will be normalized to lowercase and ensured to end with a dot.
+    ///
+    /// # Example
+    /// ```
+    /// let endec = B32DomainEndec::new("example.com")?;
+    /// ```
     pub fn new(suffix: &str) -> Result<Self> {
         let suffix_with_dot = if !suffix.ends_with(".") {
             format!("{}.", suffix)
@@ -35,6 +46,12 @@ impl B32DomainEndec {
         Ok(endec)
     }
 
+    /// Encodes the given data into a domain name using base32 encoding. The resulting domain name will consist of labels of up to 63 characters, followed by the specified suffix. The total length of the domain name must not exceed 253 characters. The encoded data will be in lowercase.
+    ///
+    /// # Example
+    /// ```
+    /// let domain = endec.encode(b"Hello, World!")?;
+    /// ```
     pub fn encode(&self, data: &[u8]) -> Result<String> {
         let encoded =
             base32::encode(base32::Alphabet::Rfc4648 { padding: false }, data).to_lowercase();
@@ -60,6 +77,12 @@ impl B32DomainEndec {
         Ok(format!("{}.{}", labels.join("."), self.suffix))
     }
 
+    /// Decodes data from a domain name that was encoded using the `encode` method. The domain name must end with the specified suffix, and the labels before the suffix will be concatenated and decoded from base32. The decoding is case-insensitive.
+    ///
+    /// # Example
+    /// ```
+    /// let data = endec.decode("jbswy3dpfqqfo33snrscc.example.com.")?;
+    /// ```
     pub fn decode(&self, domain: &str) -> Result<Vec<u8>> {
         let mut domain = domain.to_lowercase();
         if !domain.ends_with('.') {
@@ -79,6 +102,12 @@ impl B32DomainEndec {
         Ok(bytes)
     }
 
+    /// Returns the maximum length of data that can be encoded in a domain name with the current suffix, taking into account the limitations of label lengths and total domain name length.
+    ///
+    /// # Example
+    /// ```
+    /// let max_data_len = endec.max_data_len();
+    /// ```
     pub fn max_data_len(&self) -> usize {
         let available_len = self.max_total_len - self.suffix.len() - 1;
         let max_chars = (available_len / 64) * 63 + (available_len % 64);
@@ -87,19 +116,39 @@ impl B32DomainEndec {
     }
 }
 
+/// A DNS encoder/decoder that encodes data into the TXT record of a DNS response using base32 encoding, and decodes data from such a TXT record. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the maximum length of a TXT record in a DNS response (255 bytes for the entire TXT record, including length byte).
 pub struct B32ResponseEndec {
+    /// The maximum total length of the encoded data in the TXT record, which must be less than or equal to 253 characters to fit within the DNS response limits.
     max_total_len: usize,
 }
 
 impl B32ResponseEndec {
+    /// Creates a new `B32ResponseEndec` with the default maximum total length of 253 characters for the encoded data. This allows for some overhead in the DNS response while still fitting within the typical limits of DNS record sizes.
+    ///
+    /// # Example
+    /// ```
+    /// let endec = B32ResponseEndec::new();
+    /// ```
     pub fn new() -> Self {
         Self { max_total_len: 253 }
     }
 
+    /// Returns the maximum length of data that can be encoded in a DNS response using this encoder, taking into account the limitations of DNS record sizes and the overhead of base32 encoding.
+    ///
+    /// # Example
+    /// ```
+    /// let max_data_len = endec.max_data_len();
+    /// ```
     pub fn max_data_len(&self) -> usize {
         (self.max_total_len) * 5 / 8
     }
 
+    /// Encodes the given data into a byte vector that can be included in a DNS response, using base32 encoding. The encoded data will be in lowercase, and the total length of the encoded data must not exceed the maximum total length allowed by this encoder.
+    ///
+    /// # Example
+    /// ```
+    /// let encoded = endec.encode(b"Hello, World!")?;
+    /// ```
     pub fn encode(&self, data: &[u8]) -> Result<Vec<u8>> {
         let encoded =
             base32::encode(base32::Alphabet::Rfc4648 { padding: false }, data).to_lowercase();
@@ -113,6 +162,12 @@ impl B32ResponseEndec {
         Ok(encoded.into_bytes())
     }
 
+    /// Decodes data from a byte vector that was encoded using the `encode` method. The input is expected to be a UTF-8 encoded string in lowercase, which will be decoded from base32. The decoding is case-insensitive.
+    ///
+    /// # Example
+    /// ```
+    /// let decoded = endec.decode(b"jbswy3dpfqqfo33snrscc")?;
+    /// ```
     pub fn decode(&self, content: &[u8]) -> Result<Vec<u8>> {
         let encoded = std::str::from_utf8(content)?.to_uppercase();
         let bytes = base32::decode(base32::Alphabet::Rfc4648 { padding: false }, &encoded)
