@@ -52,11 +52,39 @@ As a demonstration, the server responds with the reversed message received from 
 
 You may also verify using `dig` command that the server receives the request and responds correctly (`19260817` encodes to base32 `GE4TENRQHAYTO` and `g4ytqmbwgi4tc` decodes to `71806291`):
 
+```bash
+dig @127.0.0.1 -p 10053 GE4TENRQHAYTO.example.com TXT
+```
+
 ![](./assets/phase-1_dig_server.png)
 
 ### Actually Deploying Server to be an Authoritative DNS Server
 
 To make it more than a local toy, you might want to deploy the server to a publicly accessible machine, let it listen to port 53, and point a domain's NS record to it. This way, you can use the client from anywhere in the world **using public DNS servers** (which also makes it possible to concurrently querying multiple public DNS servers to speed things up/avoid rate limiting) to communicate with our server.
+
+Run a DNS server on port 53 usually requires root privileges, so you might want to use `sudo` to run the server:
+
+```bash
+sudo ./target/debug/short_communication -s -d n.marky.top -p 53
+```
+
+Run the client with Cloudflare's public DNS server:
+
+```bash
+cargo run --bin short_communication -- -d n.marky.top -n 1.1.1.1:53
+```
+
+![](./assets/phase-1_client_server_public.png)
+
+Or use `dig`:
+
+```bash
+dig @1.1.1.1 GE4TENRQHAYTO.n.marky.top TXT
+```
+
+![](./assets/phase-1_dig_server_public.png)
+
+You can also try to communicate with `n.marky.top`. I will try my best to keep the authoritative server running. It runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) and freezes from time to time. Not the most stable server.
 
 ## For Developers
 
