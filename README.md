@@ -92,4 +92,4 @@ You can also try to communicate with `n.marky.top`. I will try my best to keep t
 
 ## For 98-008 Teaching Group
 
-[Notes and links for checkpoints](./for_98-008_teaching_group.md)
+[Check points and requirements checklist](./for_98-008_teaching_group.md)
