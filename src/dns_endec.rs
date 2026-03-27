@@ -5,12 +5,24 @@ use hickory_proto::op::{MessageType, message::Message, query::Query};
 use hickory_proto::rr::{
     Record, domain::Name, rdata::TXT, record_data::RData, record_type::RecordType,
 };
+use std::fmt;
 use std::str::FromStr;
 
 /// A DNS request encoder/decoder that encodes data into a domain name in a DNS query using base32 encoding, and decodes data from such a domain name. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the limitations of DNS label lengths and total domain name length.    
 pub struct DnsRequest {
     /// The base32 encoder/decoder used to encode data into domain labels and decode data from domain labels. It handles the logic of splitting the encoded data into labels of appropriate length and ensuring that the total length of the domain name does not exceed DNS limits.
     b32_domain_endec: B32DomainEndec,
+}
+
+impl fmt::Display for DnsRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "DnsRequest Encoder/Decoder with domain suffix: {}, max payload length: {}",
+            self.b32_domain_endec.suffix(),
+            self.b32_domain_endec.max_data_len()
+        )
+    }
 }
 
 impl DnsRequest {
@@ -178,6 +190,18 @@ mod dns_request_endec_tests {
         let message = Message::new();
         let packet = message.to_vec()?;
         assert!(encoder.decode_packet(&packet).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_display_trait() -> Result<()> {
+        let encoder = DnsRequest::new("example.com")?;
+        let display_output = format!("{}", encoder);
+        println!("{}", display_output);
+        assert!(
+            display_output.contains("DnsRequest Encoder/Decoder with domain suffix: example.com.")
+        );
+        assert!(display_output.contains("max payload length:"));
         Ok(())
     }
 }

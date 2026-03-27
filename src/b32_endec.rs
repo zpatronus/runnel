@@ -102,6 +102,16 @@ impl B32DomainEndec {
         Ok(bytes)
     }
 
+    /// Returns the domain suffix for this encoder/decoder.
+    ///
+    /// # Example
+    /// ```
+    /// let suffix = endec.suffix();
+    /// ```
+    pub fn suffix(&self) -> &str {
+        &self.suffix
+    }
+
     /// Returns the maximum length of data that can be encoded in a domain name with the current suffix, taking into account the limitations of label lengths and total domain name length.
     ///
     /// # Example
