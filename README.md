@@ -28,13 +28,17 @@ cargo run --bin short_communication -- -d example.com --dns 127.0.0.1:10053
 
 This binary allows user to input messages in the client terminal, which will be sent to the server through DNS tunnel.
 
-The server responds with the reversed message received from the client.
+As a demonstration, the server responds with the reversed message received from the client.
 
 ![](./assets/phase-1_client_server.png)
 
 You may also verify using `dig` command that the server receives the request and responds correctly (`19260817` encodes to base32 `GE4TENRQHAYTO` and `g4ytqmbwgi4tc` decodes to `71806291`):
 
 ![](./assets/phase-1_dig_server.png)
+
+## For Developers
+
+[Technical Notes](./DEVELOPERS.md)
 
 ## For 98-008 Teaching Group
 
