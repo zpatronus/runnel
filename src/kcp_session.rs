@@ -22,7 +22,7 @@ impl Write for OutputPacketBuf {
 
 pub struct KcpSession {
     kcp_ptr: Arc<Mutex<Kcp<OutputPacketBuf>>>,
-    output_packet_buf: OutputPacketBuf,
+    output_packet_buf_ptr: OutputPacketBuf,
     _is_closed: mpsc::Sender<()>,
 }
 
@@ -55,7 +55,7 @@ impl KcpSession {
 
         Self {
             kcp_ptr: kcp,
-            output_packet_buf: output,
+            output_packet_buf_ptr: output,
             _is_closed: tx,
         }
     }
@@ -64,20 +64,38 @@ impl KcpSession {
         self.kcp_ptr.lock().unwrap()
     }
 
+    fn output_packet_buf(&self) -> std::sync::MutexGuard<'_, Vec<Vec<u8>>> {
+        self.output_packet_buf_ptr.0.lock().unwrap()
+    }
+
     pub fn send(&self, data: &[u8]) -> Result<()> {
-        todo!()
+        self.kcp()
+            .send(data)
+            .map_err(|e| anyhow::anyhow!("Failed to send data: {:?}", e))?;
+        Ok(())
     }
 
     pub fn recv(&self) -> Option<Vec<u8>> {
-        todo!()
+        let size = self.kcp().peeksize().ok()?;
+        let mut buf = vec![0u8; size];
+        self.kcp().recv(&mut buf).ok()?;
+        Some(buf)
     }
 
     pub fn poll_output_packet(&self) -> Option<Vec<u8>> {
-        todo!()
+        let mut output_buf = self.output_packet_buf();
+        if output_buf.is_empty() {
+            None
+        } else {
+            Some(output_buf.remove(0))
+        }
     }
 
     pub fn input_packet(&self, packet: &[u8]) -> Result<()> {
-        todo!()
+        self.kcp()
+            .input(packet)
+            .map_err(|e| anyhow::anyhow!("Failed to input packet: {:?}", e))?;
+        Ok(())
     }
 
     pub fn conv(&self) -> u32 {
