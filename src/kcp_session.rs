@@ -146,7 +146,7 @@ mod kcp_session_tests {
     }
 
     #[tokio::test]
-    async fn test_kcp_session_short_message_exchange() {
+    async fn test_kcp_session_short_message_exchange() -> Result<()> {
         let a = KcpSession::new(123, 1400);
         let b = KcpSession::new(123, 1400);
 
@@ -163,10 +163,11 @@ mod kcp_session_tests {
         sleep(Duration::from_millis(100)).await;
         let msg_from_b = a.recv().unwrap();
         assert_eq!(msg_from_b, b"Hello from B!");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_kcp_session_long_message_exchange() {
+    async fn test_kcp_session_long_message_exchange() -> Result<()> {
         let a = KcpSession::new(123, 1400);
         let b = KcpSession::new(123, 1400);
 
@@ -185,10 +186,11 @@ mod kcp_session_tests {
         sleep(Duration::from_millis(100)).await;
         let msg_from_b = a.recv().unwrap();
         assert_eq!(msg_from_b, long_msg_b);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_kcp_session_with_packet_loss() {
+    async fn test_kcp_session_with_packet_loss() -> Result<()> {
         let a = KcpSession::new(123, 1400);
         let b = KcpSession::new(123, 1400);
 
@@ -205,10 +207,11 @@ mod kcp_session_tests {
         assert_eq!(msg_from_a, long_msg_a);
         let msg_from_b = a.recv().unwrap();
         assert_eq!(msg_from_b, long_msg_b);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_kcp_session_with_packet_loss_small_mtu() {
+    async fn test_kcp_session_with_packet_loss_small_mtu() -> Result<()> {
         let a = KcpSession::new(123, 50);
         let b = KcpSession::new(123, 50);
 
@@ -225,10 +228,11 @@ mod kcp_session_tests {
         assert_eq!(msg_from_a, long_msg_a);
         let msg_from_b = a.recv().unwrap();
         assert_eq!(msg_from_b, long_msg_b);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_kcp_session_with_packet_loss_small_mtu_large_message() {
+    async fn test_kcp_session_with_packet_loss_small_mtu_large_message() -> Result<()> {
         let a = KcpSession::new(123, 140);
         let b = KcpSession::new(123, 140);
 
@@ -278,5 +282,39 @@ mod kcp_session_tests {
                 / 1_000_000.0
                 / 2.0
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_respect_mtu() -> Result<()> {
+        let long_msg = vec![b'A'; 5000];
+
+        for packet_size in (50..=1400).step_by(50) {
+            let a = KcpSession::new(123, packet_size);
+            let b = KcpSession::new(123, packet_size);
+            a.send(&long_msg).unwrap();
+            loop {
+                sleep(Duration::from_millis(1)).await;
+                while let Some(packet) = a.poll_output_packet() {
+                    assert!(packet.len() <= packet_size);
+                    b.input_packet(&packet).unwrap();
+                }
+                deliver_a_to_b(&b, &a);
+                if let Some(msg) = b.recv() {
+                    assert_eq!(msg, long_msg);
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_conv() -> Result<()> {
+        let a = KcpSession::new(123, 1400);
+        let b = KcpSession::new(456, 1400);
+        assert_eq!(a.conv(), 123);
+        assert_eq!(b.conv(), 456);
+        Ok(())
     }
 }
