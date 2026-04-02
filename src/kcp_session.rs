@@ -31,6 +31,7 @@ impl KcpSession {
         let output = OutputPacketBuf(Arc::new(Mutex::new(Vec::<Vec<u8>>::new())));
         let mut kcp = Kcp::new(conv, output.clone());
         kcp.set_nodelay(true, 20, 2, true);
+        kcp.set_wndsize(10000, 10000);
         kcp.set_mtu(mtu).unwrap();
         let kcp = Arc::new(Mutex::new(kcp));
         let (tx, mut rx) = mpsc::channel::<()>(1);
@@ -100,5 +101,107 @@ impl KcpSession {
 
     pub fn conv(&self) -> u32 {
         self.kcp().conv()
+    }
+}
+
+#[cfg(test)]
+mod kcp_session_tests {
+    use super::*;
+    use tokio::time::sleep;
+
+    fn deliver_a_to_b(a: &KcpSession, b: &KcpSession) {
+        while let Some(packet) = a.poll_output_packet() {
+            b.input_packet(&packet).unwrap();
+        }
+    }
+
+    fn deliver_a_to_b_lossy(a: &KcpSession, b: &KcpSession, loss_rate: f64) {
+        while let Some(packet) = a.poll_output_packet() {
+            if rand::random::<f64>() >= loss_rate {
+                b.input_packet(&packet).unwrap();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_kcp_session_short_message_exchange() {
+        let a = KcpSession::new(123, 1400);
+        let b = KcpSession::new(123, 1400);
+
+        a.send(b"Hello from A!").unwrap();
+        sleep(Duration::from_millis(100)).await;
+        deliver_a_to_b(&a, &b);
+        sleep(Duration::from_millis(100)).await;
+        let msg_from_a = b.recv().unwrap();
+        assert_eq!(msg_from_a, b"Hello from A!");
+
+        b.send(b"Hello from B!").unwrap();
+        sleep(Duration::from_millis(100)).await;
+        deliver_a_to_b(&b, &a);
+        sleep(Duration::from_millis(100)).await;
+        let msg_from_b = a.recv().unwrap();
+        assert_eq!(msg_from_b, b"Hello from B!");
+    }
+
+    #[tokio::test]
+    async fn test_kcp_session_long_message_exchange() {
+        let a = KcpSession::new(123, 1400);
+        let b = KcpSession::new(123, 1400);
+
+        let long_msg_a = vec![b'A'; 5000];
+        a.send(&long_msg_a).unwrap();
+        sleep(Duration::from_millis(100)).await;
+        deliver_a_to_b(&a, &b);
+        sleep(Duration::from_millis(100)).await;
+        let msg_from_a = b.recv().unwrap();
+        assert_eq!(msg_from_a, long_msg_a);
+
+        let long_msg_b = vec![b'B'; 5000];
+        b.send(&long_msg_b).unwrap();
+        sleep(Duration::from_millis(100)).await;
+        deliver_a_to_b(&b, &a);
+        sleep(Duration::from_millis(100)).await;
+        let msg_from_b = a.recv().unwrap();
+        assert_eq!(msg_from_b, long_msg_b);
+    }
+
+    #[tokio::test]
+    async fn test_kcp_session_with_packet_loss() {
+        let a = KcpSession::new(123, 1400);
+        let b = KcpSession::new(123, 1400);
+
+        let long_msg_a = vec![b'A'; 5000];
+        a.send(&long_msg_a).unwrap();
+        let long_msg_b = vec![b'B'; 5000];
+        b.send(&long_msg_b).unwrap();
+        for _ in 0..100 {
+            sleep(Duration::from_millis(5)).await;
+            deliver_a_to_b_lossy(&a, &b, 0.3);
+            deliver_a_to_b_lossy(&b, &a, 0.3);
+        }
+        let msg_from_a = b.recv().unwrap();
+        assert_eq!(msg_from_a, long_msg_a);
+        let msg_from_b = a.recv().unwrap();
+        assert_eq!(msg_from_b, long_msg_b);
+    }
+
+    #[tokio::test]
+    async fn test_kcp_session_with_packet_loss_small_mtu() {
+        let a = KcpSession::new(123, 50);
+        let b = KcpSession::new(123, 50);
+
+        let long_msg_a = vec![b'A'; 5000];
+        a.send(&long_msg_a).unwrap();
+        let long_msg_b = vec![b'B'; 5000];
+        b.send(&long_msg_b).unwrap();
+        for _ in 0..1000 {
+            sleep(Duration::from_millis(1)).await;
+            deliver_a_to_b_lossy(&a, &b, 0.3);
+            deliver_a_to_b_lossy(&b, &a, 0.3);
+        }
+        let msg_from_a = b.recv().unwrap();
+        assert_eq!(msg_from_a, long_msg_a);
+        let msg_from_b = a.recv().unwrap();
+        assert_eq!(msg_from_b, long_msg_b);
     }
 }
