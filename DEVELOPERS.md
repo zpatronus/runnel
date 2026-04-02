@@ -20,7 +20,7 @@ For more details, see the [kcp crate documentation](https://docs.rs/kcp/latest/k
 
 However, its implementation has a hardcoded message size limit of 127 * MSS. In the context of DNS tunneling, the MTU is typically around 150 bytes, which results in a MSS of around 120 bytes, meaning the maximum message size is around 15 KB. This is insufficient.
 
-My solution is to break messages into 127*MSS chunks, and view each chunks as a "message" in KCP's perspective. If a chunk is not the last chunk, I insert a bit 1 at the beginning of the chunk to indicate that more chunks are coming. If it's the last chunk, I insert a bit 0.
+My solution is to break a long message into 127*MSS chunks, and view each chunks as a "message" in KCP's perspective. Each chunk is prefixed with a single byte, 1 if more chunks follow, 0 for the final chunk.
 
 Since KCP guarantees in-order delivery, the receiver can simply read chunks until it encounters a chunk with the bit 0, and then reassemble the original message. This way, I can support messages of arbitrary size.
 
