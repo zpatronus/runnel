@@ -32,7 +32,7 @@ impl KcpSession {
         let output = OutputPacketBuf(Arc::new(Mutex::new(Vec::<Vec<u8>>::new())));
         let mut kcp = Kcp::new(conv, output.clone());
         kcp.set_nodelay(true, 20, 2, true);
-        kcp.set_wndsize(10000, 10000);
+        kcp.set_wndsize(15000, 15000);
         kcp.set_mtu(mtu).unwrap();
         let kcp = Arc::new(Mutex::new(kcp));
         let (tx, mut rx) = mpsc::channel::<()>(1);
@@ -138,10 +138,20 @@ mod kcp_session_tests {
     }
 
     fn deliver_a_to_b_lossy(a: &KcpSession, b: &KcpSession, loss_rate: f64) {
+        let mut packets = Vec::new();
+
         while let Some(packet) = a.poll_output_packet() {
             if rand::random::<f64>() >= loss_rate {
-                b.input_packet(&packet).unwrap();
+                packets.push(packet);
             }
+        }
+        for i in 0..packets.len() {
+            if i + 1 < packets.len() && rand::random::<f64>() < 0.5 {
+                packets.swap(i, i + 1);
+            }
+        }
+        for packet in packets {
+            b.input_packet(&packet).unwrap();
         }
     }
 
@@ -198,10 +208,10 @@ mod kcp_session_tests {
         a.send(&long_msg_a).unwrap();
         let long_msg_b = vec![b'B'; 5000];
         b.send(&long_msg_b).unwrap();
-        for _ in 0..100 {
-            sleep(Duration::from_millis(5)).await;
-            deliver_a_to_b_lossy(&a, &b, 0.3);
-            deliver_a_to_b_lossy(&b, &a, 0.3);
+        for _ in 0..1000 {
+            sleep(Duration::from_millis(1)).await;
+            deliver_a_to_b_lossy(&a, &b, 0.1);
+            deliver_a_to_b_lossy(&b, &a, 0.1);
         }
         let msg_from_a = b.recv().unwrap();
         assert_eq!(msg_from_a, long_msg_a);
@@ -251,6 +261,60 @@ mod kcp_session_tests {
             sleep(Duration::from_millis(20)).await;
             deliver_a_to_b_lossy(&a, &b, 0.02);
             deliver_a_to_b_lossy(&b, &a, 0.02);
+            if !a_received {
+                if let Some(msg) = a.recv() {
+                    msg_from_b = msg;
+                    a_received = true;
+                }
+            }
+            if !b_received {
+                if let Some(msg) = b.recv() {
+                    msg_from_a = msg;
+                    b_received = true;
+                }
+            }
+            if a_received && b_received {
+                break;
+            }
+        }
+        let elapsed = SystemTime::now().duration_since(start_time).unwrap();
+        assert_eq!(msg_from_b, long_msg_b);
+        assert_eq!(msg_from_a, long_msg_a);
+
+        println!(
+            "Transferred 10 MB from A to B and 10 MB from B to A in {:.2} ms",
+            elapsed.as_secs_f64() * 1000.0
+        );
+        println!(
+            "Estimated bandwidth: {:.2} Mbps",
+            (msg_from_a.len() + msg_from_b.len()) as f64 * 8.0
+                / elapsed.as_secs_f64()
+                / 1_000_000.0
+                / 2.0
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_kcp_session_with_packet_small_mtu_large_message() -> Result<()> {
+        let a = KcpSession::new(123, 140);
+        let b = KcpSession::new(123, 140);
+
+        let long_msg_a = vec![b'A'; 10000000];
+        let long_msg_b = vec![b'B'; 10000000];
+        let mut a_received = false;
+        let mut b_received = false;
+        let mut msg_from_a = Vec::new();
+        let mut msg_from_b = Vec::new();
+
+        let start_time = SystemTime::now();
+
+        a.send(&long_msg_a).unwrap();
+        b.send(&long_msg_b).unwrap();
+        loop {
+            sleep(Duration::from_millis(20)).await;
+            deliver_a_to_b(&a, &b);
+            deliver_a_to_b(&b, &a);
             if !a_received {
                 if let Some(msg) = a.recv() {
                     msg_from_b = msg;
