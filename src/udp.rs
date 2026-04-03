@@ -5,9 +5,10 @@ use std::{net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
 /// A UDP client that can send data to a specified remote address and receive responses.
+#[derive(Clone)]
 pub struct Client {
     /// The UDP socket used to send data and receive responses.
-    socket: UdpSocket,
+    socket: Arc<UdpSocket>,
     /// The address of the remote server to which the client will send data.
     remote: SocketAddr,
 }
@@ -21,7 +22,7 @@ impl Client {
     /// ```
     pub async fn new(bind_addr: &str, remote_addr: &str) -> Result<Self> {
         Ok(Self {
-            socket: UdpSocket::bind(bind_addr).await?,
+            socket: Arc::new(UdpSocket::bind(bind_addr).await?),
             remote: remote_addr.parse()?,
         })
     }

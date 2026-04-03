@@ -9,6 +9,7 @@ use std::fmt;
 use std::str::FromStr;
 
 /// A DNS request encoder/decoder that encodes data into a domain name in a DNS query using base32 encoding, and decodes data from such a domain name. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the limitations of DNS label lengths and total domain name length.    
+#[derive(Clone)]
 pub struct DnsRequest {
     /// The base32 encoder/decoder used to encode data into domain labels and decode data from domain labels. It handles the logic of splitting the encoded data into labels of appropriate length and ensuring that the total length of the domain name does not exceed DNS limits.
     b32_domain_endec: B32DomainEndec,
@@ -84,6 +85,7 @@ impl DnsRequest {
 }
 
 /// A DNS response encoder/decoder that encodes data into a TXT record in a DNS response using base32 encoding, and decodes data from such a TXT record. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the limitations of DNS record sizes and the overhead of base32 encoding.
+#[derive(Clone)]
 pub struct DnsResponse {
     /// The base32 encoder/decoder used to encode data into the TXT record and decode data from the TXT record. It handles the logic of ensuring that the encoded data fits within the limits of a DNS response and is properly formatted for inclusion in a TXT record.
     b32_response_endec: B32ResponseEndec,

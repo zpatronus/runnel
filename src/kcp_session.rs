@@ -20,6 +20,7 @@ impl Write for OutputPacketBuf {
     }
 }
 
+#[derive(Clone)]
 pub struct KcpSession {
     kcp_ptr: Arc<Mutex<Kcp<OutputPacketBuf>>>,
     output_packet_buf_ptr: OutputPacketBuf,

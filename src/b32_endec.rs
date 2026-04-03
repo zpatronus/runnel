@@ -2,6 +2,7 @@
 use anyhow::{Ok, Result, bail};
 
 /// A DNS encoder/decoder that encodes data into the labels of a domain name using base32 encoding, and decodes data from such a domain name.
+#[derive(Clone)]
 pub struct B32DomainEndec {
     /// The domain suffix that will be appended to the encoded labels. The suffix must end with a dot and will be normalized to lowercase. The maximum length of the suffix is 253 characters (including the trailing dot), and it must not be empty.
     suffix: String,
@@ -127,6 +128,7 @@ impl B32DomainEndec {
 }
 
 /// A DNS encoder/decoder that encodes data into the TXT record of a DNS response using base32 encoding, and decodes data from such a TXT record. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the maximum length of a TXT record in a DNS response (255 bytes for the entire TXT record, including length byte).
+#[derive(Clone)]
 pub struct B32ResponseEndec {
     /// The maximum total length of the encoded data in the TXT record, which must be less than or equal to 253 characters to fit within the DNS response limits.
     max_total_len: usize,
