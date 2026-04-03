@@ -91,7 +91,7 @@ impl RunnelClient {
                         last_send_time = Instant::now();
                     }
                     if !did_work && last_send_time.elapsed() >= NOOP_INTERVAL {
-                        let _ = kcp_session.send(NOOP_MESSAGE);
+                        let _ = kcp_session.send(&construct_noop_message());
                         last_send_time = Instant::now();
                         did_work = true;
                     }
@@ -117,7 +117,7 @@ impl RunnelClient {
     }
 
     pub fn send_noop(&mut self) -> Result<()> {
-        self.kcp_session.send(NOOP_MESSAGE)?;
+        self.kcp_session.send(&construct_noop_message())?;
         Ok(())
     }
 
