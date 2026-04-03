@@ -58,8 +58,6 @@ impl RunnelClient {
                                     if decoded.len() < KCP_OVERHEAD {
                                         continue;
                                     }
-                                    let _ = kcp_session.send(&construct_noop_message());
-                                    let _ = kcp_session.send(&construct_noop_message());
                                     let decoded_conv = get_conv(&decoded);
                                     if decoded_conv == conv {
                                         let _ = kcp_session.input_packet(&decoded);
@@ -128,9 +126,8 @@ impl RunnelClient {
     pub fn recv(&mut self) -> Option<Vec<u8>> {
         loop {
             if let Some(msg) = self.kcp_session.recv() {
-                let _ = self.send_noop();
-                let _ = self.send_noop();
                 if !is_noop_message(&msg) {
+                    let _ = self.send_noop();
                     return Some(msg);
                 }
             } else {
