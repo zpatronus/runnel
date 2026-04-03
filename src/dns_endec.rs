@@ -91,6 +91,12 @@ pub struct DnsResponse {
     b32_response_endec: B32ResponseEndec,
 }
 
+impl Default for DnsResponse {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DnsResponse {
     /// Creates a new `DnsResponse` encoder/decoder with the default maximum total length of 253 characters for the encoded data. This allows for some overhead in the DNS response while still fitting within the typical limits of DNS record sizes.
     ///
