@@ -8,6 +8,7 @@ use tokio::{self, sync::broadcast, time};
 
 const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 const NOOP_INTERVAL: Duration = Duration::from_millis(10);
+const POLL_INTERVAL: Duration = Duration::from_millis(1);
 
 fn construct_noop_message() -> Vec<u8> {
     let mut msg = NOOP_MESSAGE.to_vec();
@@ -97,7 +98,7 @@ impl RunnelClient {
                     }
                     if !did_work {
                         tokio::select! {
-                            _ = time::sleep(Duration::from_millis(1)) => {}
+                            _ = time::sleep(POLL_INTERVAL) => {}
                             _ = shutdown_rx.recv() => break,
                         }
                     }
