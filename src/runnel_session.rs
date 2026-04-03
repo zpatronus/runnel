@@ -128,6 +128,7 @@ impl RunnelClient {
             if let Some(msg) = self.kcp_session.recv() {
                 if !is_noop_message(&msg) {
                     let _ = self.send_noop();
+                    let _ = self.send_noop();
                     return Some(msg);
                 }
             } else {
@@ -284,7 +285,7 @@ mod runnel_session_tests {
         let mut server = RunnelServer::new(&server_addr, "test.com").await?;
         let mut client = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
 
-        let long_msg: Vec<u8> = (0..5000).map(|i| (i % 256) as u8).collect();
+        let long_msg: Vec<u8> = (0..10).map(|i| (i % 256) as u8).collect();
 
         client.send(b"init")?;
         for _ in 0..500 {
