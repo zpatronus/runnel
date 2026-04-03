@@ -101,13 +101,13 @@ impl Server {
 }
 
 impl Reply {
-    /// Sends a response back to the sender of the original packet. This will block until the data is sent.
+    /// Sends a response back to the sender of the original packet. Consumes the reply so that each reply can only be used once.
     ///
     /// # Example
     /// ```
     /// reply.send(b"response").await?;
     /// ```
-    pub async fn send(&self, data: &[u8]) -> Result<()> {
+    pub async fn send(self, data: &[u8]) -> Result<()> {
         self.socket.send_to(data, self.to).await?;
         Ok(())
     }
