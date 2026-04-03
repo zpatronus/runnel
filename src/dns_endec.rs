@@ -20,7 +20,7 @@ impl fmt::Display for DnsRequest {
             f,
             "DnsRequest Encoder/Decoder with domain suffix: {}, max payload length: {}",
             self.b32_domain_endec.suffix(),
-            self.b32_domain_endec.max_data_len()
+            self.max_data_len()
         )
     }
 }
@@ -75,6 +75,11 @@ impl DnsRequest {
         let data = self.b32_domain_endec.decode(&domain)?;
 
         Ok(data)
+    }
+
+    /// Returns the maximum length of the data that can be encoded in a DNS query using this encoder, based on the limitations of DNS label lengths and total domain name length. This is determined by the maximum number of characters that can be used for the encoded data while still fitting within the DNS limits when combined with the specified suffix.
+    pub fn max_data_len(&self) -> usize {
+        self.b32_domain_endec.max_data_len()
     }
 }
 
@@ -157,6 +162,11 @@ impl DnsResponse {
         let decoded = self.b32_response_endec.decode(encoded_bytes)?;
         Ok(decoded)
     }
+
+    /// Returns the maximum length of the data that can be encoded in a DNS response using this encoder, based on the limitations of DNS record sizes and the overhead of base32 encoding. This is determined by the maximum number of characters that can be used for the encoded data while still fitting within the limits of a DNS response when combined with the necessary DNS record formatting.
+    pub fn max_data_len(&self) -> usize {
+        self.b32_response_endec.max_data_len()
+    }
 }
 
 #[cfg(test)]
@@ -237,8 +247,8 @@ mod dns_request_response_integration_tests {
     fn test_dns_request_response_integration() -> Result<()> {
         let request_encoder = DnsRequest::new("example.com")?;
         let response_encoder = DnsResponse::new();
-        let request_max_len = request_encoder.b32_domain_endec.max_data_len();
-        let response_max_len = response_encoder.b32_response_endec.max_data_len();
+        let request_max_len = request_encoder.max_data_len();
+        let response_max_len = response_encoder.max_data_len();
         let content_length = request_max_len.min(response_max_len);
         let request_data = b"ABCD".repeat(content_length / 4);
         let request_packet = request_encoder.encode_packet(&request_data)?;
