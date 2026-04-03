@@ -9,6 +9,7 @@ use tokio::{self, sync::broadcast, time};
 const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 const NOOP_INTERVAL: Duration = Duration::from_millis(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
+const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn construct_noop_message() -> Vec<u8> {
     let mut msg = NOOP_MESSAGE.to_vec();
@@ -117,7 +118,7 @@ impl RunnelClient {
         Ok(())
     }
 
-    pub fn send_noop(&mut self) -> Result<()> {
+    fn send_noop(&mut self) -> Result<()> {
         self.kcp_session.send(&construct_noop_message())?;
         Ok(())
     }
@@ -137,8 +138,4 @@ impl RunnelClient {
     }
 }
 
-pub struct RunnelServer {
-    request_decoder: DnsRequest,
-    response_encoder: DnsResponse,
-    udp_server: Server,
-}
+pub struct RunnelServer {}
