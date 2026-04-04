@@ -16,7 +16,7 @@ const NOOP_INTERVAL: Duration = Duration::from_millis(100);
 /// Interval for polling output packets.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
 /// Maximum number of recent output packets to buffer per conversation for retransmission.
-const MAX_MOST_RECENT_PACKET: usize = 30;
+const MAX_MOST_RECENT_PACKET: usize = 8;
 /// Default timeout for cleaning up inactive server sessions.
 const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -238,9 +238,11 @@ impl RunnelServer {
                                     session.last_active = Instant::now();
                                     let _ = session.kcp.input_packet(&decoded);
                                     if let Some(packet) = session.kcp.poll_output_packet() {
-                                        session.recent_packets.push_back(packet.clone());
-                                        if session.recent_packets.len() > MAX_MOST_RECENT_PACKET {
-                                            session.recent_packets.pop_front();
+                                        if packet.len() > 60 {
+                                            session.recent_packets.push_back(packet.clone());
+                                            if session.recent_packets.len() > MAX_MOST_RECENT_PACKET {
+                                                session.recent_packets.pop_front();
+                                            }
                                         }
                                         Some(packet)
                                     } else {
