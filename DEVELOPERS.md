@@ -36,7 +36,7 @@ An ARQ protocol like KCP cannot solve this problem because the limitation is on 
 
 To solve it, there must be a consistent flow of packets between the client and the server, even if one side has nothing meaningful to send.
 
-Think of them as continuous flow of ships making a round trip from client to server and back. Sometimes the ship carries cargo (a request or a response), and sometimes it is empty (a NOOP message).
+Think of them as continuous flow of ships making a round trip from client to server and back. Sometimes the ship carries cargo (some meaningful data), and sometimes it is empty (a NOOP message).
 
 ![](./assets/phase-2-keepalive.png)
 
