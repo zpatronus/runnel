@@ -71,9 +71,10 @@ async fn run_server(args: Args) {
             if let Some(msg) = server.recv(conv) {
                 println!("Received: {}", String::from_utf8_lossy(&msg));
                 let capitalized: Vec<u8> = msg.iter().map(|b| b.to_ascii_uppercase()).collect();
-                server
-                    .send(conv, &capitalized)
-                    .expect("Failed to send response");
+                if let Err(e) = server.send(conv, &capitalized) {
+                    eprintln!("Failed to send response: {}", e);
+                    continue;
+                };
                 println!("Sent: {}", String::from_utf8_lossy(&capitalized));
                 if args.once {
                     time::sleep(Duration::from_millis(500)).await;
