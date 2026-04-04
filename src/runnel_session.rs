@@ -297,48 +297,95 @@ mod runnel_session_tests {
         let mut server = RunnelServer::new(&server_addr, "test.com").await?;
         let mut client = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
 
-        let long_msg: Vec<u8> = (0..10).map(|i| (i % 256) as u8).collect();
+        let long_msg: Vec<u8> = (0..500000).map(|i| (i % 256) as u8).collect();
 
         client.send(b"init")?;
         for _ in 0..500 {
             time::sleep(Duration::from_millis(5)).await;
-            if server.recv().is_some() {
-                println!("Received init message, proceeding with long message test");
-                break;
+            if let Some(msg) = server.recv() {
+                if msg == b"init" {
+                    break;
+                }
             }
         }
 
         client.send(&long_msg)?;
         server.send(&long_msg)?;
 
-        let server_handle = tokio::spawn(async move {
-            for _ in 0..2000 {
-                time::sleep(Duration::from_millis(5)).await;
-                if let Some(msg) = server.recv() {
-                    return Ok::<Option<Vec<u8>>, anyhow::Error>(Some(msg));
-                }
+        let mut server_msg: Option<Vec<u8>> = None;
+        let mut client_msg: Option<Vec<u8>> = None;
+        for _ in 0..2000 {
+            time::sleep(Duration::from_millis(5)).await;
+            if server_msg.is_none() {
+                server_msg = server.recv();
             }
-            Ok(None)
-        });
-
-        let client_handle = tokio::spawn(async move {
-            for _ in 0..2000 {
-                time::sleep(Duration::from_millis(5)).await;
-                if let Some(msg) = client.recv() {
-                    return Ok::<Option<Vec<u8>>, anyhow::Error>(Some(msg));
-                }
+            if client_msg.is_none() {
+                client_msg = client.recv();
             }
-            Ok(None)
-        });
-
-        let server_msg = server_handle.await??;
-        let client_msg = client_handle.await??;
+            if server_msg.is_some() && client_msg.is_some() {
+                break;
+            }
+        }
 
         let server_msg = server_msg.context("server never received message")?;
         let client_msg = client_msg.context("client never received message")?;
 
         assert_eq!(server_msg, long_msg);
         assert_eq!(client_msg, long_msg);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_benchmark() -> Result<()> {
+        let port = find_available_port();
+        let server_addr = format!("127.0.0.1:{}", port);
+        let mut server = RunnelServer::new(&server_addr, "test.com").await?;
+        let mut client = RunnelClient::new(vec![server_addr], "test.com").await?;
+
+        client.send(b"init")?;
+        for _ in 0..500 {
+            time::sleep(Duration::from_millis(5)).await;
+            if let Some(msg) = server.recv() {
+                if msg == b"init" {
+                    break;
+                }
+            }
+        }
+
+        let msg_size: usize = 100000;
+        let bench_duration = Duration::from_secs(15);
+        let data: Vec<u8> = vec![0u8; msg_size];
+
+        let mut server_recv_count: u64 = 0;
+        let mut client_recv_count: u64 = 0;
+
+        client.send(&data)?;
+        server.send(&data)?;
+
+        let start = Instant::now();
+        while start.elapsed() < bench_duration {
+            time::sleep(Duration::from_millis(1)).await;
+
+            if server.recv().is_some() {
+                server_recv_count += 1;
+                let _ = server.send(&data);
+            }
+
+            if client.recv().is_some() {
+                client_recv_count += 1;
+                let _ = client.send(&data);
+            }
+        }
+        let elapsed = start.elapsed().as_secs_f64();
+
+        let c2s_bytes = server_recv_count as f64 * msg_size as f64;
+        let s2c_bytes = client_recv_count as f64 * msg_size as f64;
+        let c2s_speed = c2s_bytes / elapsed / 1_000_000.0;
+        let s2c_speed = s2c_bytes / elapsed / 1_000_000.0;
+
+        println!("Client -> Server: {:.2} MB/s", c2s_speed);
+        println!("Server -> Client: {:.2} MB/s", s2c_speed);
+
         Ok(())
     }
 }
