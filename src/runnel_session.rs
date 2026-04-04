@@ -4,7 +4,7 @@ use crate::kcp_session::KcpSession;
 use crate::udp::{Client, Server};
 use anyhow::{Result, bail};
 use kcp::{KCP_OVERHEAD, get_conv};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::{self, sync::broadcast, time};
@@ -15,6 +15,8 @@ const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 const NOOP_INTERVAL: Duration = Duration::from_millis(100);
 /// Interval for polling output packets.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
+/// Maximum number of recent output packets to buffer per conversation for retransmission.
+const MAX_MOST_RECENT_PACKET: usize = 30;
 /// Default timeout for cleaning up inactive server sessions.
 const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -77,13 +79,13 @@ impl RunnelClient {
                     tokio::select! {
                         result = udp_client.recv() => {
                             if let Ok(data) = result && let Ok(decoded) = response_decoder.decode_packet(&data) {
-                                    if decoded.len() < KCP_OVERHEAD {
-                                        continue;
-                                    }
-                                    let decoded_conv = get_conv(&decoded);
-                                    if decoded_conv == conv {
-                                        let _ = kcp_session.input_packet(&decoded);
-                                    }
+                                if decoded.len() < KCP_OVERHEAD {
+                                    continue;
+                                }
+                                let decoded_conv = get_conv(&decoded);
+                                if decoded_conv == conv {
+                                    let _ = kcp_session.input_packet(&decoded);
+                                }
                             }
                         }
                         _ = shutdown_rx.recv() => break,
@@ -172,6 +174,7 @@ impl RunnelClient {
 struct ServerSession {
     kcp: KcpSession,
     last_active: Instant,
+    recent_packets: VecDeque<Vec<u8>>,
 }
 
 /// Server that handles multiple clients communicating using KCP over DNS.
@@ -229,21 +232,24 @@ impl RunnelServer {
                                         ServerSession {
                                             kcp: KcpSession::new(conv, mtu),
                                             last_active: Instant::now(),
+                                            recent_packets: VecDeque::new(),
                                         }
                                     });
                                     session.last_active = Instant::now();
                                     let _ = session.kcp.input_packet(&decoded);
-                                    session.kcp.poll_output_packet()
+                                    if let Some(packet) = session.kcp.poll_output_packet() {
+                                        session.recent_packets.push_back(packet.clone());
+                                        if session.recent_packets.len() > MAX_MOST_RECENT_PACKET {
+                                            session.recent_packets.pop_front();
+                                        }
+                                        Some(packet)
+                                    } else {
+                                        session.recent_packets.pop_front()
+                                    }
                                 };
-                                if let Some(packet) = packet {
-                                    if let Ok(encoded) = response_encoder.encode_packet(&data, &packet) {
-                                        let _ = reply.send(&encoded).await;
-                                    }
-                                } else {
-                                    // this is fine, since client checks packet size
-                                    if let Ok(encoded) = response_encoder.encode_packet(&data, b"") {
-                                        let _ = reply.send(&encoded).await;
-                                    }
+                                let packet_to_send: &[u8] = packet.as_deref().unwrap_or(b"");
+                                if let Ok(encoded) = response_encoder.encode_packet(&data, packet_to_send) {
+                                    let _ = reply.send(&encoded).await;
                                 }
                             }
                         }
