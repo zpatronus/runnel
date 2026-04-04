@@ -3,6 +3,7 @@ use crate::kcp_session::KcpSession;
 use crate::udp::{Client, Server};
 use anyhow::{Result, bail};
 use kcp::{KCP_OVERHEAD, get_conv};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::{self, sync::broadcast, time};
@@ -30,6 +31,14 @@ pub struct RunnelClient {
 
 impl RunnelClient {
     pub async fn new(dns_servers: Vec<String>, domain_suffix: &str) -> Result<Self> {
+        Self::with_conv(dns_servers, domain_suffix, rand::random::<u32>()).await
+    }
+
+    pub async fn with_conv(
+        dns_servers: Vec<String>,
+        domain_suffix: &str,
+        conv: u32,
+    ) -> Result<Self> {
         if dns_servers.is_empty() {
             bail!("At least one DNS server must be provided");
         }
@@ -39,7 +48,6 @@ impl RunnelClient {
         }
         let request_encoder = DnsRequest::new(domain_suffix)?;
         let mtu = request_encoder.max_data_len();
-        let conv = rand::random::<u32>();
         let kcp_session = KcpSession::new(conv, mtu);
 
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
@@ -118,6 +126,10 @@ impl RunnelClient {
         Ok(())
     }
 
+    pub fn get_conv(&self) -> u32 {
+        self.kcp_session.conv()
+    }
+
     fn send_noop(&mut self) -> Result<()> {
         self.kcp_session.send(&construct_noop_message())?;
         Ok(())
@@ -138,8 +150,13 @@ impl RunnelClient {
     }
 }
 
+struct ServerSession {
+    kcp: KcpSession,
+    last_active: Instant,
+}
+
 pub struct RunnelServer {
-    kcp_session: Arc<Mutex<Option<(u32, KcpSession)>>>,
+    sessions: Arc<Mutex<HashMap<u32, ServerSession>>>,
     _shutdown: broadcast::Sender<()>,
 }
 
@@ -160,43 +177,45 @@ impl RunnelServer {
 
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
-        let kcp_session: Arc<Mutex<Option<(u32, KcpSession)>>> = Arc::new(Mutex::new(None));
+        let sessions: Arc<Mutex<HashMap<u32, ServerSession>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         {
-            let kcp_session = kcp_session.clone();
+            let sessions = sessions.clone();
             let mut shutdown_rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 loop {
                     tokio::select! {
                         result = udp_server.recv() => {
                             if let Ok((data, reply)) = result && let Ok(decoded) = request_decoder.decode_packet(&data) {
-                                    let conv = get_conv(&decoded);
-                                    let packet = {
-                                        let mut state = kcp_session.lock().unwrap();
-                                        if state.is_none() {
-                                            *state = Some((conv, KcpSession::new(conv, mtu)));
+                                let conv = get_conv(&decoded);
+                                let packet = {
+                                    let mut state = sessions.lock().unwrap();
+                                    let session = state.entry(conv).or_insert_with(|| {
+                                        ServerSession {
+                                            kcp: KcpSession::new(conv, mtu),
+                                            last_active: Instant::now(),
                                         }
-                                        let (stored_conv, kcp) = state.as_ref().unwrap();
-                                        if *stored_conv != conv {
-                                            continue;
-                                        }
-                                        let _ = kcp.input_packet(&decoded);
-                                        kcp.poll_output_packet()
-                                    };
-                                    if let Some(packet) = packet {
-                                        if let Ok(encoded) = response_encoder.encode_packet(&data, &packet) {
-                                            let _ = reply.send(&encoded).await;
-                                        }
-                                    } else {
-                                        // this is fine, since client checks conv
-                                        if let Ok(encoded) = response_encoder.encode_packet(&data, b"") {
-                                            let _ = reply.send(&encoded).await;
-                                        }
+                                    });
+                                    session.last_active = Instant::now();
+                                    let _ = session.kcp.input_packet(&decoded);
+                                    session.kcp.poll_output_packet()
+                                };
+                                if let Some(packet) = packet {
+                                    if let Ok(encoded) = response_encoder.encode_packet(&data, &packet) {
+                                        let _ = reply.send(&encoded).await;
                                     }
+                                } else {
+                                    // this is fine, since client checks packet size
+                                    if let Ok(encoded) = response_encoder.encode_packet(&data, b"") {
+                                        let _ = reply.send(&encoded).await;
+                                    }
+                                }
                             }
                         }
                         _ = time::sleep(timeout) => {
-                            *kcp_session.lock().unwrap() = None;
+                            let mut state = sessions.lock().unwrap();
+                            state.retain(|_, session| session.last_active.elapsed() < timeout);
                         }
                         _ = shutdown_rx.recv() => break,
                     }
@@ -205,35 +224,37 @@ impl RunnelServer {
         }
 
         Ok(Self {
-            kcp_session,
+            sessions,
             _shutdown: shutdown_tx,
         })
     }
 
-    pub fn send(&mut self, data: &[u8]) -> Result<()> {
-        let state = self.kcp_session.lock().unwrap();
-        match state.as_ref() {
-            Some((_, kcp)) => kcp.send(data)?,
-            None => bail!("No active session"),
+    pub fn send(&self, conv: u32, data: &[u8]) -> Result<()> {
+        let state = self.sessions.lock().unwrap();
+        match state.get(&conv) {
+            Some(session) => session.kcp.send(data)?,
+            None => bail!("No active session for conv {}", conv),
         }
         Ok(())
     }
 
-    pub fn recv(&mut self) -> Option<Vec<u8>> {
-        let state = self.kcp_session.lock().unwrap();
+    pub fn recv(&self, conv: u32) -> Option<Vec<u8>> {
+        let state = self.sessions.lock().unwrap();
+        let session = state.get(&conv)?;
         loop {
-            if let Some((_, kcp)) = state.as_ref() {
-                if let Some(msg) = kcp.recv() {
-                    if !is_noop_message(&msg) {
-                        return Some(msg);
-                    }
-                } else {
-                    return None;
+            if let Some(msg) = session.kcp.recv() {
+                if !is_noop_message(&msg) {
+                    return Some(msg);
                 }
             } else {
                 return None;
             }
         }
+    }
+
+    pub fn active_convs(&self) -> Vec<u32> {
+        let state = self.sessions.lock().unwrap();
+        state.keys().copied().collect()
     }
 }
 
@@ -255,14 +276,15 @@ mod runnel_session_tests {
     async fn test_client_to_server_short_message() -> Result<()> {
         let port = find_available_port();
         let server_addr = format!("127.0.0.1:{}", port);
-        let mut server = RunnelServer::new(&server_addr, "test.com").await?;
+        let server = RunnelServer::new(&server_addr, "test.com").await?;
         let mut client = RunnelClient::new(vec![server_addr], "test.com").await?;
+        let conv = client.get_conv();
 
         client.send(b"hello from client")?;
 
         for _ in 0..200 {
             time::sleep(Duration::from_millis(5)).await;
-            if let Some(msg) = server.recv() {
+            if let Some(msg) = server.recv(conv) {
                 assert_eq!(msg, b"hello from client");
                 return Ok(());
             }
@@ -274,16 +296,17 @@ mod runnel_session_tests {
     async fn test_exchange_short_message() -> Result<()> {
         let port = find_available_port();
         let server_addr = format!("127.0.0.1:{}", port);
-        let mut server = RunnelServer::new(&server_addr, "test.com").await?;
+        let server = RunnelServer::new(&server_addr, "test.com").await?;
         let mut client = RunnelClient::new(vec![server_addr], "test.com").await?;
+        let conv = client.get_conv();
 
         client.send(b"hello from client")?;
 
         for _ in 0..200 {
             time::sleep(Duration::from_millis(5)).await;
-            if let Some(msg) = server.recv() {
+            if let Some(msg) = server.recv(conv) {
                 assert_eq!(msg, b"hello from client");
-                server.send(b"hello from server")?;
+                server.send(conv, b"hello from server")?;
 
                 for _ in 0..200 {
                     time::sleep(Duration::from_millis(5)).await;
@@ -302,15 +325,16 @@ mod runnel_session_tests {
     async fn test_exchange_long_message() -> Result<()> {
         let port = find_available_port();
         let server_addr = format!("127.0.0.1:{}", port);
-        let mut server = RunnelServer::new(&server_addr, "test.com").await?;
+        let server = RunnelServer::new(&server_addr, "test.com").await?;
         let mut client = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
+        let conv = client.get_conv();
 
         let long_msg: Vec<u8> = (0..500000).map(|i| (i % 256) as u8).collect();
 
         client.send(b"init")?;
         for _ in 0..500 {
             time::sleep(Duration::from_millis(5)).await;
-            if let Some(msg) = server.recv() {
+            if let Some(msg) = server.recv(conv) {
                 if msg == b"init" {
                     break;
                 }
@@ -318,14 +342,14 @@ mod runnel_session_tests {
         }
 
         client.send(&long_msg)?;
-        server.send(&long_msg)?;
+        server.send(conv, &long_msg)?;
 
         let mut server_msg: Option<Vec<u8>> = None;
         let mut client_msg: Option<Vec<u8>> = None;
         for _ in 0..2000 {
             time::sleep(Duration::from_millis(5)).await;
             if server_msg.is_none() {
-                server_msg = server.recv();
+                server_msg = server.recv(conv);
             }
             if client_msg.is_none() {
                 client_msg = client.recv();
@@ -347,13 +371,14 @@ mod runnel_session_tests {
     async fn test_benchmark() -> Result<()> {
         let port = find_available_port();
         let server_addr = format!("127.0.0.1:{}", port);
-        let mut server = RunnelServer::new(&server_addr, "test.com").await?;
+        let server = RunnelServer::new(&server_addr, "test.com").await?;
         let mut client = RunnelClient::new(vec![server_addr], "test.com").await?;
+        let conv = client.get_conv();
 
         client.send(b"init")?;
         for _ in 0..500 {
             time::sleep(Duration::from_millis(5)).await;
-            if let Some(msg) = server.recv() {
+            if let Some(msg) = server.recv(conv) {
                 if msg == b"init" {
                     break;
                 }
@@ -368,15 +393,15 @@ mod runnel_session_tests {
         let mut client_recv_count: u64 = 0;
 
         client.send(&data)?;
-        server.send(&data)?;
+        server.send(conv, &data)?;
 
         let start = Instant::now();
         while start.elapsed() < bench_duration {
             time::sleep(Duration::from_millis(1)).await;
 
-            if server.recv().is_some() {
+            if server.recv(conv).is_some() {
                 server_recv_count += 1;
-                let _ = server.send(&data);
+                let _ = server.send(conv, &data);
             }
 
             if client.recv().is_some() {
@@ -401,17 +426,19 @@ mod runnel_session_tests {
     async fn test_server_timeout() -> Result<()> {
         let port = find_available_port();
         let server_addr = format!("127.0.0.1:{}", port);
-        let mut server =
+        let server =
             RunnelServer::with_timeout(&server_addr, "test.com", Duration::from_secs(3)).await?;
 
         // t=0: client1 connects and exchanges with server
-        let mut client1 = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
+        let conv1 = 12345u32;
+        let mut client1 =
+            RunnelClient::with_conv(vec![server_addr.clone()], "test.com", conv1).await?;
         client1.send(b"hello")?;
         for _ in 0..200 {
             time::sleep(Duration::from_millis(5)).await;
-            if let Some(msg) = server.recv() {
+            if let Some(msg) = server.recv(conv1) {
                 let reply: Vec<u8> = msg.iter().map(|b| b.to_ascii_uppercase()).collect();
-                server.send(&reply)?;
+                server.send(conv1, &reply)?;
                 break;
             }
         }
@@ -427,14 +454,14 @@ mod runnel_session_tests {
         drop(client1);
         time::sleep(Duration::from_secs(5)).await;
 
-        // t=5: client2 should be able to connect
-        let mut client2 = RunnelClient::new(vec![server_addr], "test.com").await?;
+        // t=5: client2 reuses the same conv
+        let mut client2 = RunnelClient::with_conv(vec![server_addr], "test.com", conv1).await?;
         client2.send(b"world")?;
         for _ in 0..200 {
             time::sleep(Duration::from_millis(5)).await;
-            if let Some(msg) = server.recv() {
+            if let Some(msg) = server.recv(conv1) {
                 let reply: Vec<u8> = msg.iter().map(|b| b.to_ascii_uppercase()).collect();
-                server.send(&reply)?;
+                server.send(conv1, &reply)?;
                 break;
             }
         }
@@ -446,5 +473,90 @@ mod runnel_session_tests {
             }
         }
         bail!("client2 never received response");
+    }
+
+    #[tokio::test]
+    async fn test_three_clients_500_bytes() -> Result<()> {
+        let port = find_available_port();
+        let server_addr = format!("127.0.0.1:{}", port);
+        let server = RunnelServer::new(&server_addr, "test.com").await?;
+        let mut client1 = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
+        let mut client2 = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
+        let mut client3 = RunnelClient::new(vec![server_addr], "test.com").await?;
+        let conv1 = client1.get_conv();
+        let conv2 = client2.get_conv();
+        let conv3 = client3.get_conv();
+
+        let msg: Vec<u8> = (0..500).map(|i| (i % 256) as u8).collect();
+
+        client1.send(b"init")?;
+        client2.send(b"init")?;
+        client3.send(b"init")?;
+        for _ in 0..500 {
+            time::sleep(Duration::from_millis(5)).await;
+            if server.recv(conv1).is_some()
+                && server.recv(conv2).is_some()
+                && server.recv(conv3).is_some()
+            {
+                break;
+            }
+        }
+
+        client1.send(&msg)?;
+        client2.send(&msg)?;
+        client3.send(&msg)?;
+        server.send(conv1, &msg)?;
+        server.send(conv2, &msg)?;
+        server.send(conv3, &msg)?;
+
+        let mut s_got1 = false;
+        let mut s_got2 = false;
+        let mut s_got3 = false;
+        let mut c_got1 = false;
+        let mut c_got2 = false;
+        let mut c_got3 = false;
+        for _ in 0..2000 {
+            time::sleep(Duration::from_millis(5)).await;
+            if !s_got1 {
+                if let Some(data) = server.recv(conv1) {
+                    assert_eq!(data, msg);
+                    s_got1 = true;
+                }
+            }
+            if !s_got2 {
+                if let Some(data) = server.recv(conv2) {
+                    assert_eq!(data, msg);
+                    s_got2 = true;
+                }
+            }
+            if !s_got3 {
+                if let Some(data) = server.recv(conv3) {
+                    assert_eq!(data, msg);
+                    s_got3 = true;
+                }
+            }
+            if !c_got1 {
+                if let Some(data) = client1.recv() {
+                    assert_eq!(data, msg);
+                    c_got1 = true;
+                }
+            }
+            if !c_got2 {
+                if let Some(data) = client2.recv() {
+                    assert_eq!(data, msg);
+                    c_got2 = true;
+                }
+            }
+            if !c_got3 {
+                if let Some(data) = client3.recv() {
+                    assert_eq!(data, msg);
+                    c_got3 = true;
+                }
+            }
+            if s_got1 && s_got2 && s_got3 && c_got1 && c_got2 && c_got3 {
+                return Ok(());
+            }
+        }
+        bail!("not all server/client exchanges completed");
     }
 }
