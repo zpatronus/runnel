@@ -10,7 +10,7 @@ use tokio::{self, sync::broadcast, time};
 const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 const NOOP_INTERVAL: Duration = Duration::from_millis(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
-const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(60);
+const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn construct_noop_message() -> Vec<u8> {
     let mut msg = NOOP_MESSAGE.to_vec();
@@ -145,6 +145,14 @@ pub struct RunnelServer {
 
 impl RunnelServer {
     pub async fn new(bind_addr: &str, domain_suffix: &str) -> Result<Self> {
+        Self::with_timeout(bind_addr, domain_suffix, DEFAULT_SERVER_TIMEOUT).await
+    }
+
+    pub async fn with_timeout(
+        bind_addr: &str,
+        domain_suffix: &str,
+        timeout: Duration,
+    ) -> Result<Self> {
         let udp_server = Server::new(bind_addr).await?;
         let request_decoder = DnsRequest::new(domain_suffix)?;
         let response_encoder = DnsResponse::new();
@@ -187,7 +195,7 @@ impl RunnelServer {
                                     }
                             }
                         }
-                        _ = time::sleep(DEFAULT_SERVER_TIMEOUT) => {
+                        _ = time::sleep(timeout) => {
                             *kcp_session.lock().unwrap() = None;
                         }
                         _ = shutdown_rx.recv() => break,
@@ -387,5 +395,56 @@ mod runnel_session_tests {
         println!("Server -> Client: {:.2} MB/s", s2c_speed);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_server_timeout() -> Result<()> {
+        let port = find_available_port();
+        let server_addr = format!("127.0.0.1:{}", port);
+        let mut server =
+            RunnelServer::with_timeout(&server_addr, "test.com", Duration::from_secs(3)).await?;
+
+        // t=0: client1 connects and exchanges with server
+        let mut client1 = RunnelClient::new(vec![server_addr.clone()], "test.com").await?;
+        client1.send(b"hello")?;
+        for _ in 0..200 {
+            time::sleep(Duration::from_millis(5)).await;
+            if let Some(msg) = server.recv() {
+                let reply: Vec<u8> = msg.iter().map(|b| b.to_ascii_uppercase()).collect();
+                server.send(&reply)?;
+                break;
+            }
+        }
+        for _ in 0..200 {
+            time::sleep(Duration::from_millis(5)).await;
+            if let Some(msg) = client1.recv() {
+                assert_eq!(msg, b"HELLO");
+                break;
+            }
+        }
+
+        // drop client1 and wait for server timeout
+        drop(client1);
+        time::sleep(Duration::from_secs(5)).await;
+
+        // t=5: client2 should be able to connect
+        let mut client2 = RunnelClient::new(vec![server_addr], "test.com").await?;
+        client2.send(b"world")?;
+        for _ in 0..200 {
+            time::sleep(Duration::from_millis(5)).await;
+            if let Some(msg) = server.recv() {
+                let reply: Vec<u8> = msg.iter().map(|b| b.to_ascii_uppercase()).collect();
+                server.send(&reply)?;
+                break;
+            }
+        }
+        for _ in 0..200 {
+            time::sleep(Duration::from_millis(5)).await;
+            if let Some(msg) = client2.recv() {
+                assert_eq!(msg, b"WORLD");
+                return Ok(());
+            }
+        }
+        bail!("client2 never received response");
     }
 }
