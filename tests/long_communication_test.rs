@@ -43,7 +43,7 @@ fn test_server_client_integration() {
         drop(client.0.stdin.take());
     }
 
-    thread::sleep(Duration::from_secs(10));
+    thread::sleep(Duration::from_secs(15));
 
     let _ = client.0.kill();
     let _ = client.0.wait();
@@ -83,6 +83,12 @@ fn test_server_client_integration() {
         client_output.contains("Received response:"),
         "Client should receive the response, got: {}",
         &client_output[..client_output.len().min(200)]
+    );
+
+    let expected_response = "A".repeat(10000);
+    assert!(
+        client_output.contains(&expected_response),
+        "Client should receive the expected response"
     );
 }
 
@@ -185,6 +191,12 @@ fn test_server_multi_client_integration() {
         &client1_output[..client1_output.len().min(200)]
     );
 
+    let expected_response = "A".repeat(10000);
+    assert!(
+        client1_output.contains(&expected_response),
+        "client1 should receive the expected response"
+    );
+
     let client2_stdout = client2
         .0
         .stdout
@@ -199,5 +211,11 @@ fn test_server_multi_client_integration() {
         client2_output.contains("Received response:"),
         "client2 should receive the response, got: {}",
         &client2_output[..client2_output.len().min(200)]
+    );
+
+    let expected_response = "B".repeat(10000);
+    assert!(
+        client2_output.contains(&expected_response),
+        "client2 should receive the expected response"
     );
 }

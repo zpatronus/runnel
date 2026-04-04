@@ -77,7 +77,7 @@ async fn run_server(args: Args) {
                 };
                 println!("Sent: {}", String::from_utf8_lossy(&capitalized));
                 if args.once {
-                    time::sleep(Duration::from_millis(500)).await;
+                    time::sleep(Duration::from_secs(3)).await;
                     return;
                 }
             }

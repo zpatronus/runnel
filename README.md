@@ -120,6 +120,12 @@ cargo run --bin long_communication -- -d example.com -n 127.0.0.1:10053 -n 127.0
 
 Different from `short_communication`, `long_communication` allows user to specify multiple DNS servers in client mode, which can speed up the communication and also avoid potential rate limiting.
 
+***Caveat:*** Linux has a hardcoded, 4096-char (4095 excluding newline) limit for terminal line when operating in canonical mode (which is the default) ([the source code](https://github.com/torvalds/linux/blob/v5.11/drivers/tty/n_tty.c#L1681)). This means that if you input a message longer than 4096 chars in the client terminal, it will be truncated by the terminal before being sent to the client. To bypass this limit, you can switch the terminal to non-canonical mode using `stty -icanon` command.
+
+```bash
+stty -icanon && cargo run --bin long_communication -- -d example.com -n 127.0.0.1:10053
+```
+
 #### Local Demonstration
 
 As a demonstration, the server responds with the capitalized message received from the client.
