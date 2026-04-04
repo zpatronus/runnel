@@ -30,7 +30,7 @@ Since KCP guarantees in-order delivery, the receiver can simply read chunks unti
 
 DNS is fundamentally a request-response protocol: a client sends a single packet of query and receives a single packet of response. In phase 1, this isn't a problem since each request maps to exactly one response. However, in phase 2, and in real-world applications, the number of request packets and response packets often don't match.
 
-For example, if the application uploads a large file, the client sends many request packets while the server only needs a few responses. Conversely, when downloading a large file, the client sends few requests but the server sends many responses.
+For example, if the application uploads a large file, the client sends many request packets while the server only needs a few responses. Conversely, when downloading a large file, the client sends few requests but the server sends many responses, which is even more challenging because the server cannot actively send more packets.
 
 An ARQ protocol like KCP cannot solve this problem because the limitation is on the number of packets both sides can send.
 
