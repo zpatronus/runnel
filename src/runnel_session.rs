@@ -211,6 +211,11 @@ impl RunnelServer {
             let mut shutdown_rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 loop {
+                    {
+                        let mut state = sessions.lock().unwrap();
+                        state.retain(|_, session| session.last_active.elapsed() < timeout);
+                    }
+
                     tokio::select! {
                         result = udp_server.recv() => {
                             if let Ok((data, reply)) = result && let Ok(decoded) = request_decoder.decode_packet(&data) {
@@ -242,10 +247,7 @@ impl RunnelServer {
                                 }
                             }
                         }
-                        _ = time::sleep(timeout) => {
-                            let mut state = sessions.lock().unwrap();
-                            state.retain(|_, session| session.last_active.elapsed() < timeout);
-                        }
+                        _ = time::sleep(POLL_INTERVAL) => {}
                         _ = shutdown_rx.recv() => break,
                     }
                 }
