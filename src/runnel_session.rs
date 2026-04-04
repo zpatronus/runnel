@@ -213,7 +213,19 @@ impl RunnelServer {
 
     pub fn recv(&mut self) -> Option<Vec<u8>> {
         let state = self.kcp_session.lock().unwrap();
-        state.as_ref()?.1.recv()
+        loop {
+            if let Some((_, kcp)) = state.as_ref() {
+                if let Some(msg) = kcp.recv() {
+                    if !is_noop_message(&msg) {
+                        return Some(msg);
+                    }
+                } else {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        }
     }
 }
 
