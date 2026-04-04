@@ -25,3 +25,32 @@ My solution is to break a long message into 127*MSS chunks, and view each chunks
 Since KCP guarantees in-order delivery, the receiver can simply read chunks until it encounters a chunk with the bit 0, and then reassemble the original message. This way, I can support messages of arbitrary size.
 
 ![](./assets/phase-2-kcp_session.png)
+
+### The Challenge of Asymmetric Packet Flow
+
+DNS is fundamentally a request-response protocol: a client sends a single packet of query and receives a single packet of response. In phase 1, this isn't a problem since each request maps to exactly one response. However, in phase 2, and in real-world applications, the number of request packets and response packets often don't match.
+
+For example, if the application uploads a large file, the client sends many request packets while the server only needs a few responses. Conversely, when downloading a large file, the client sends few requests but the server sends many responses.
+
+An ARQ protocol like KCP cannot solve this problem because the limitation is on the number of packets both sides can send.
+
+To solve it, there must be a consistent flow of packets between the client and the server, even if one side has nothing meaningful to send.
+
+Think of them as continuous flow of ships making a round trip from client to server and back. Sometimes the ship carries cargo (a request or a response), and sometimes it is empty (a NOOP message).
+
+![](./assets/phase-2-keepalive.png)
+
+A NOOP message is defined so that the receiving side knows such message don't carry meaningful data, and are there because the other side thinks the receiving side side might want to send more data.
+
+For client:
+
+- If it has a packet to send, it sends the packet.
+- If it has no packet to send but the NOOP interval is reached, it sends 1 NOOP.
+- If it receives a meaningful packet, it sends 2 NOOP to allow the server to send more packets if it has.
+
+For server (who can only, and must send a response for each request):
+
+- If it has a packet to send, it sends the packet.
+- If it has no packet to send, it sends 1 NOOP.
+
+This mechanism essentially creates a continuous flow of dynamically sized fleet of ships between the client and the server. The fleet size goes up when either side has more packets to send, and goes down when both side have no packet to send.
