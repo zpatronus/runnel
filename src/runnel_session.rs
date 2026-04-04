@@ -1,4 +1,4 @@
-//! Session layer over KCP for DNS-over-KCP.
+//! Session layer over KCP for DNS tunneling.
 use crate::dns_endec::{DnsRequest, DnsResponse};
 use crate::kcp_session::KcpSession;
 use crate::udp::{Client, Server};
@@ -9,16 +9,16 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::{self, sync::broadcast, time};
 
-/// NOOP_MESSAGE is a fixed 16-byte prefix followed by 32 random bytes, used to keep the KCP session alive without sending actual data.
+/// Prefix for NOOP messages used to keep the KCP session alive.
 const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
-/// The interval at which the client sends NOOP messages to keep the KCP session alive when there is no actual data to send.
+/// Interval for sending NOOP messages when idle.
 const NOOP_INTERVAL: Duration = Duration::from_millis(10);
-/// The interval at which the client polls for output packets to send to the DNS servers. This is a short interval to ensure low latency in sending packets, while also allowing for efficient batching of outgoing packets when there is a burst of data to send.
+/// Interval for polling output packets.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
-/// The default timeout duration for server sessions. If a session has been inactive for longer than this duration, it will be automatically cleaned up by the server to free resources and prevent stale sessions from lingering indefinitely.
+/// Default timeout for cleaning up inactive server sessions.
 const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Constructs a NOOP message by starting with a fixed 16-byte prefix (defined as `NOOP_MESSAGE`) and appending 32 random bytes to it. This results in a unique NOOP message each time it is constructed, which can be used to keep the KCP session alive without sending actual data. The random bytes help to ensure that the NOOP messages are not mistaken for valid application data.
+/// Creates a NOOP message with the fixed prefix and 32 random bytes.
 fn construct_noop_message() -> Vec<u8> {
     let mut msg = NOOP_MESSAGE.to_vec();
     let random_bytes: [u8; 32] = rand::random();
@@ -26,34 +26,28 @@ fn construct_noop_message() -> Vec<u8> {
     msg
 }
 
-/// Checks if a received message is a NOOP message by verifying that it starts with the predefined `NOOP_MESSAGE` prefix. This function is used to filter out NOOP messages from actual application data, allowing the session to ignore NOOP messages when processing received data.
+/// Checks if a message is a NOOP message.
 fn is_noop_message(msg: &[u8]) -> bool {
     msg.starts_with(NOOP_MESSAGE)
 }
 
-/// The `RunnelClient` struct represents a client that can communicate with a `RunnelServer` using KCP over DNS. It manages a KCP session and handles sending and receiving messages through the session. The client can send messages of arbitrary length, which are automatically fragmented and reassembled by the KCP session. It also implements a keep-alive mechanism using NOOP messages to maintain the session even when there is no actual data being sent.
+/// Client that communicates with a `RunnelServer` using KCP over DNS.
 pub struct RunnelClient {
     kcp_session: KcpSession,
     _shutdown: broadcast::Sender<()>,
 }
 
 impl RunnelClient {
-    /// Creates a new `RunnelClient` instance by connecting to the specified DNS servers and using the provided domain suffix for encoding/decoding DNS packets. The client initializes a KCP session with a random conversation ID and starts background tasks to handle sending and receiving packets through the DNS servers. The client will automatically send NOOP messages at regular intervals to keep the session alive, even when there is no actual data being sent.
+    /// Creates a new client connected to the specified DNS servers.
     ///
-    /// # Example
-    /// ```rust
-    /// let client = RunnelClient::new(vec!["8.8.8.8:53"], "example.com").await?;
-    /// ```
+    /// Uses a random conversation ID. Background tasks handle packet sending/receiving.
     pub async fn new(dns_servers: Vec<String>, domain_suffix: &str) -> Result<Self> {
         Self::with_conv(dns_servers, domain_suffix, rand::random::<u32>()).await
     }
 
-    /// Creates a new `RunnelClient` instance with a specified conversation ID. This is useful for testing purposes, allowing multiple clients to use the same conversation ID without interference. The method connects to the specified DNS servers, initializes a KCP session with the given conversation ID, and starts background tasks to handle sending and receiving packets through the DNS servers. The client will automatically send NOOP messages at regular intervals to keep the session alive.
+    /// Creates a new client with a specified conversation ID.
     ///
-    /// # Example
-    /// ```rust
-    /// let client1 = RunnelClient::with_conv(vec!["8.8.8.8:53"], "example.com", 12345).await?;
-    /// ```
+    /// Useful for testing with deterministic conversation IDs.
     pub async fn with_conv(
         dns_servers: Vec<String>,
         domain_suffix: &str,
@@ -141,38 +135,24 @@ impl RunnelClient {
         })
     }
 
-    /// Sends data through the KCP session. The data can be of arbitrary length, and the KCP session will handle fragmentation and reassembly as needed. This method will return an error if the KCP session fails to send the data for any reason.
-    ///
-    /// # Example
-    /// ```rust
-    /// let mut client = RunnelClient::new(vec!["8.8.8.8:53"], "example.com").await?;
-    /// client.send(b"Hello, world!").await?;
-    /// let long_message = vec![b'A'; 5000];
-    /// client.send(&long_message).await?;
-    /// ```
+    /// Sends data through the KCP session.
     pub fn send(&mut self, data: &[u8]) -> Result<()> {
         self.kcp_session.send(data)?;
         Ok(())
     }
 
-    /// Returns the conversation ID of the KCP session
-    ///
-    /// # Example
-    /// ```rust
-    /// let client = RunnelClient::new(vec!["8.8.8.8:53"], "example.com").await?;
-    /// let conv = client.get_conv();
-    /// ```
+    /// Returns the conversation ID.
     pub fn get_conv(&self) -> u32 {
         self.kcp_session.conv()
     }
 
-    /// Sends a NOOP message through the KCP session to keep it alive. This method can be called periodically when there is no actual data to send, ensuring that the session remains active and does not time out due to inactivity.
+    /// Sends a NOOP message to keep the session alive.
     fn send_noop(&mut self) -> Result<()> {
         self.kcp_session.send(&construct_noop_message())?;
         Ok(())
     }
 
-    /// Receives data from the KCP session. This method will return `Some(Vec<u8>)` if a message is received, or `None` if there are no messages available. The method will automatically filter out NOOP messages, so only actual application data will be returned to the caller.
+    /// Receives data from the KCP session, filtering out NOOP messages.
     pub fn recv(&mut self) -> Option<Vec<u8>> {
         loop {
             if let Some(msg) = self.kcp_session.recv() {
@@ -188,35 +168,29 @@ impl RunnelClient {
     }
 }
 
-/// The `ServerSession` struct represents a single session on the server side, managing the KCP session and tracking its activity.
+/// Server-side session managing a single client's KCP connection.
 struct ServerSession {
     kcp: KcpSession,
     last_active: Instant,
 }
 
-/// The `RunnelServer` struct represents a server that can handle multiple clients communicating using KCP over DNS. It manages multiple KCP sessions, each identified by a unique conversation ID, and handles sending and receiving messages through these sessions. The server can receive messages from clients, process them, and send responses back to the appropriate client sessions. It also implements a timeout mechanism to clean up inactive sessions after a specified duration of inactivity.
+/// Server that handles multiple clients communicating using KCP over DNS.
+///
+/// Manages multiple KCP sessions identified by conversation IDs.
 pub struct RunnelServer {
     sessions: Arc<Mutex<HashMap<u32, ServerSession>>>,
     _shutdown: broadcast::Sender<()>,
 }
 
 impl RunnelServer {
-    /// Creates a new `RunnelServer` instance by binding to the specified address and using the provided domain suffix for encoding/decoding DNS packets. The server initializes a KCP session for each unique conversation ID it receives from clients and starts background tasks to handle sending and receiving packets through the DNS server. The server will automatically clean up inactive sessions after a specified timeout duration.
-    ///
-    /// # Example
-    /// ```rust
-    /// let server = RunnelServer::new("0.0.0.0:53", "example.com").await?;
-    /// ```
+    /// Creates a new server bound to the specified address with default session timeout.
     pub async fn new(bind_addr: &str, domain_suffix: &str) -> Result<Self> {
         Self::with_timeout(bind_addr, domain_suffix, DEFAULT_SERVER_TIMEOUT).await
     }
 
-    /// Creates a new `RunnelServer` instance with a specified session timeout duration. This allows the server to automatically clean up inactive sessions after the specified duration of inactivity. The method binds to the specified address, initializes KCP sessions for incoming clients, and starts background tasks to handle sending and receiving packets through the DNS server.
+    /// Creates a new server with a specified session timeout.
     ///
-    /// # Example
-    /// ```rust
-    /// let server = RunnelServer::with_timeout("0.0.0.0:53", "example.com", std::time::Duration::from_secs(60)).await?;
-    /// ```
+    /// Inactive sessions are cleaned up after the timeout duration.
     pub async fn with_timeout(
         bind_addr: &str,
         domain_suffix: &str,
@@ -281,13 +255,9 @@ impl RunnelServer {
         })
     }
 
-    /// Sends data to the client associated with the specified conversation ID through the KCP session. The method looks up the KCP session for the given conversation ID and sends the data through that session. If there is no active session for the specified conversation ID, it returns an error.
+    /// Sends data to the client with the specified conversation ID.
     ///
-    /// # Example
-    /// ```rust
-    /// let server = RunnelServer::new("0.0.0.0:53", "example.com").await?;
-    /// server.send(123, b"hello")?;
-    /// ```
+    /// Returns an error if no active session exists for the conversation ID.
     pub fn send(&self, conv: u32, data: &[u8]) -> Result<()> {
         let state = self.sessions.lock().unwrap();
         match state.get(&conv) {
@@ -297,13 +267,9 @@ impl RunnelServer {
         Ok(())
     }
 
-    /// Receives data from the client associated with the specified conversation ID through the KCP session. The method looks up the KCP session for the given conversation ID and polls for incoming messages. It automatically filters out NOOP messages, returning only actual application data. If there is no active session for the specified conversation ID, it returns `None`.
+    /// Receives data from the client with the specified conversation ID, filtering out NOOP messages.
     ///
-    /// # Example
-    /// ```rust
-    /// let server = RunnelServer::new("0.0.0.0:53", "example.com").await?;
-    /// let data = server.recv(123)?;
-    /// ```
+    /// Returns `None` if no active session exists or no data is available.
     pub fn recv(&self, conv: u32) -> Option<Vec<u8>> {
         let state = self.sessions.lock().unwrap();
         let session = state.get(&conv)?;
@@ -318,13 +284,7 @@ impl RunnelServer {
         }
     }
 
-    /// Returns a list of active conversation IDs currently being handled by the server. This can be used for monitoring purposes or to manage sessions. The method locks the session state and collects the conversation IDs of all active sessions into a vector, which is then returned to the caller.
-    ///
-    /// # Example
-    /// ```rust
-    /// let server = RunnelServer::new("0.0.0.0:53", "example.com").await?;
-    /// let active_convs = server.active_convs();
-    /// ```
+    /// Returns a list of active conversation IDs.
     pub fn active_convs(&self) -> Vec<u32> {
         let state = self.sessions.lock().unwrap();
         state.keys().copied().collect()

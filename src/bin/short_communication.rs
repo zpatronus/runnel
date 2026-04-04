@@ -1,5 +1,6 @@
-//! Phase 1: Short Communication through DNS Tunnel
-//! This is a simple demonstration of using the `runnel` library to implement a short communication through a DNS tunnel. The client encodes user input into DNS query packets and sends them to a DNS server, while the server listens for incoming packets, decodes the data, processes it (in this case, reverses the string), and sends a response back to the client.
+//! Simple DNS tunnel communication demo.
+//!
+//! Demonstrates encoding user input into DNS queries and reversing the string server-side.
 
 use anyhow::Result;
 use clap::Parser;
@@ -9,7 +10,7 @@ use runnel::{
 };
 use std::io::Write;
 
-/// Command-line arguments for the short communication program. The program can run in either server mode or client mode, and requires a domain suffix for encoding/decoding DNS packets. The server listens on a specified port, while the client sends packets to a specified DNS server address. The `once` flag allows the program to exit after one message is sent/received, which is useful for testing.
+/// Command-line arguments.
 #[derive(Debug, Parser)]
 #[command(name = "short-communication")]
 #[command(about = "Short communication through DNS tunnel in Rust")]
@@ -35,7 +36,7 @@ struct Args {
     once: bool,
 }
 
-/// The main entry point of the program. It parses command-line arguments and runs either the server or client logic based on the provided flags. The server listens for incoming DNS query packets, decodes them, processes the data, and sends responses back to the client. The client reads user input, encodes it into DNS query packets, sends them to the specified DNS server, and waits for responses to decode and display.
+/// Entry point. Runs server or client based on command-line arguments.
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -55,7 +56,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Runs the server logic. The server binds to the specified port and listens for incoming DNS query packets. For each received packet, it decodes the data using the `DnsRequest` decoder, processes it (in this case, reverses the string), encodes a response using the `DnsResponse` encoder, and sends it back to the sender. The server continues to run until interrupted or until the `once` flag is set, which allows it to exit after handling one message.
+/// Runs the server: listens for DNS queries, decodes, reverses the data, and responds.
 async fn run_server(args: Args) {
     let port = args.port;
     let bind_addr = format!("0.0.0.0:{}", port);
@@ -104,7 +105,7 @@ async fn run_server(args: Args) {
     }
 }
 
-/// Runs the client logic. The client binds to an ephemeral port and sends DNS query packets to the specified DNS server address. It reads user input from the console, encodes it into a DNS query packet using the `DnsRequest` encoder, and sends it to the DNS server. The client then waits for a response, decodes it using the `DnsResponse` decoder, and displays the received data. The client continues to run until interrupted or until the `once` flag is set, which allows it to exit after handling one message.
+/// Runs the client: reads user input, encodes into DNS queries, sends, and prints responses.
 async fn run_client(args: Args) -> Result<()> {
     let dns_server = &args.dns;
 

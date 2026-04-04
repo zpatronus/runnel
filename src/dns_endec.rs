@@ -1,4 +1,4 @@
-//! DNS request and response encoder/decoder using base32 encoding for the data. The `DnsRequest` struct encodes data into a domain name in a DNS query, while the `DnsResponse` struct encodes data into a TXT record in a DNS response. Both encoders/decoders handle the limitations of DNS record sizes and ensure that the encoded data is in lowercase.
+//! DNS request and response encoder/decoder using base32 encoding.
 use crate::b32_endec::{B32DomainEndec, B32ResponseEndec};
 use anyhow::{Result, bail};
 use hickory_proto::op::{MessageType, message::Message, query::Query};
@@ -8,10 +8,10 @@ use hickory_proto::rr::{
 use std::fmt;
 use std::str::FromStr;
 
-/// A DNS request encoder/decoder that encodes data into a domain name in a DNS query using base32 encoding, and decodes data from such a domain name. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the limitations of DNS label lengths and total domain name length.    
+/// Encodes data into DNS query domain names using base32, and decodes from them.
 #[derive(Clone)]
 pub struct DnsRequest {
-    /// The base32 encoder/decoder used to encode data into domain labels and decode data from domain labels. It handles the logic of splitting the encoded data into labels of appropriate length and ensuring that the total length of the domain name does not exceed DNS limits.
+    /// Encoder/decoder for base32 domain labels.
     b32_domain_endec: B32DomainEndec,
 }
 
@@ -27,7 +27,9 @@ impl fmt::Display for DnsRequest {
 }
 
 impl DnsRequest {
-    /// Creates a new `DnsRequest` encoder/decoder with the specified domain suffix. The suffix must not be empty and must not exceed 253 characters (including the trailing dot). The suffix will be normalized to lowercase and ensured to end with a dot.
+    /// Creates a new encoder/decoder with the specified domain suffix.
+    ///
+    /// The suffix must not be empty and must not exceed 253 characters.
     ///
     /// # Example
     /// ```
@@ -44,12 +46,7 @@ impl DnsRequest {
         })
     }
 
-    /// Encodes the given data into a DNS query packet, where the data is encoded into a domain name using base32 encoding. The resulting domain name will consist of labels of up to 63 characters, followed by the specified suffix. The total length of the domain name must not exceed 253 characters. The encoded data will be in lowercase.
-    ///
-    /// # Example
-    /// ```
-    /// let packet = encoder.encode_packet(b"Hello, DNS!")?;
-    /// ```
+    /// Encodes data into a DNS query packet with the data in the domain name.
     pub fn encode_packet(&self, data: &[u8]) -> Result<Vec<u8>> {
         let domain = self.b32_domain_endec.encode(data)?;
         let name = Name::from_str(&domain)?;
@@ -61,11 +58,7 @@ impl DnsRequest {
         Ok(packet)
     }
 
-    /// Decodes data from a DNS query packet that was encoded using the `encode_packet` method. The method extracts the domain name from the query, checks that it ends with the specified suffix, and decodes the labels before the suffix from base32 to retrieve the original data. The decoding is case-insensitive.
-    /// # Example
-    /// ```
-    /// let data = encoder.decode_packet(&packet)?;
-    /// ```
+    /// Decodes data from a DNS query packet encoded by [`Self::encode_packet`].
     pub fn decode_packet(&self, packet: &[u8]) -> Result<Vec<u8>> {
         let message = Message::from_vec(packet)?;
         let query = message
@@ -78,16 +71,16 @@ impl DnsRequest {
         Ok(data)
     }
 
-    /// Returns the maximum length of the data that can be encoded in a DNS query using this encoder, based on the limitations of DNS label lengths and total domain name length. This is determined by the maximum number of characters that can be used for the encoded data while still fitting within the DNS limits when combined with the specified suffix.
+    /// Returns the maximum data length that can be encoded in a DNS query.
     pub fn max_data_len(&self) -> usize {
         self.b32_domain_endec.max_data_len()
     }
 }
 
-/// A DNS response encoder/decoder that encodes data into a TXT record in a DNS response using base32 encoding, and decodes data from such a TXT record. The encoded data will be in lowercase, and the maximum length of the encoded data is determined by the limitations of DNS record sizes and the overhead of base32 encoding.
+/// Encodes data into DNS TXT record responses using base32, and decodes from them.
 #[derive(Clone)]
 pub struct DnsResponse {
-    /// The base32 encoder/decoder used to encode data into the TXT record and decode data from the TXT record. It handles the logic of ensuring that the encoded data fits within the limits of a DNS response and is properly formatted for inclusion in a TXT record.
+    /// Encoder/decoder for base32 response data.
     b32_response_endec: B32ResponseEndec,
 }
 
@@ -98,24 +91,16 @@ impl Default for DnsResponse {
 }
 
 impl DnsResponse {
-    /// Creates a new `DnsResponse` encoder/decoder with the default maximum total length of 253 characters for the encoded data. This allows for some overhead in the DNS response while still fitting within the typical limits of DNS record sizes.
-    ///
-    /// # Example
-    /// ```
-    /// let encoder = DnsResponse::new();
-    /// ```
+    /// Creates a new encoder/decoder with a default max length of 253 characters.
     pub fn new() -> Self {
         Self {
             b32_response_endec: B32ResponseEndec::new(),
         }
     }
 
-    /// Encodes the given data into a DNS response packet, where the data is encoded into a TXT record using base32 encoding. The method takes the original request packet to extract the query and construct a corresponding response. The encoded data will be in lowercase, and the total length of the encoded data must not exceed the maximum total length allowed by this encoder.
+    /// Encodes data into a DNS response packet as a TXT record.
     ///
-    /// # Example
-    /// ```
-    /// let response_packet = encoder.encode_packet(&request_packet, b"Hello, Client!")
-    /// ```
+    /// Takes the original request packet to extract the query for constructing the response.
     pub fn encode_packet(&self, request: &[u8], response_data: &[u8]) -> Result<Vec<u8>> {
         let request = Message::from_vec(request)?;
         let id = request.id();
@@ -138,12 +123,7 @@ impl DnsResponse {
         Ok(packet)
     }
 
-    /// Decodes data from a DNS response packet that was encoded using the `encode_packet` method. The method extracts the TXT record from the answer section of the response, checks that it is properly formatted, and decodes the content from base32 to retrieve the original data. The decoding is case-insensitive.
-    ///
-    /// # Example
-    /// ```
-    /// let data = encoder.decode_packet(&response_packet)?;
-    /// ```
+    /// Decodes data from a DNS response packet encoded by [`Self::encode_packet`].
     pub fn decode_packet(&self, packet: &[u8]) -> Result<Vec<u8>> {
         let message = Message::from_vec(packet)?;
         let answers = message.answers();
@@ -171,7 +151,7 @@ impl DnsResponse {
         Ok(decoded)
     }
 
-    /// Returns the maximum length of the data that can be encoded in a DNS response using this encoder, based on the limitations of DNS record sizes and the overhead of base32 encoding. This is determined by the maximum number of characters that can be used for the encoded data while still fitting within the limits of a DNS response when combined with the necessary DNS record formatting.
+    /// Returns the maximum data length that can be encoded in a DNS response.
     pub fn max_data_len(&self) -> usize {
         self.b32_response_endec.max_data_len()
     }

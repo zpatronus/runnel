@@ -1,4 +1,4 @@
-//! This module implements the `KcpSession` struct, which provides an ordered, reliable, message-based transmission channel over a KCP session. It provides infinite message size on top of the kcp crate, and it handles state machine updates internally.
+//! KCP session providing ordered, reliable, message-based transmission with fragmentation support.
 use anyhow::Result;
 use kcp::Kcp;
 use std::io::Write;
@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
-/// Provides an ordered, reliable, message-based channel over KCP, handling fragmentation, reassembly, and background updates.
+/// Buffer for collecting output packets from KCP.
 #[derive(Clone)]
 struct OutputPacketBuf(Arc<Mutex<Vec<Vec<u8>>>>);
 
@@ -22,7 +22,7 @@ impl Write for OutputPacketBuf {
     }
 }
 
-/// `KcpSession` provides an ordered, reliable, message-based channel over KCP. It handles fragmentation and reassembly of messages, and it runs the KCP state machine updates in the background.
+/// KCP session handling fragmentation, reassembly, and background state machine updates.
 #[derive(Clone)]
 pub struct KcpSession {
     kcp_ptr: Arc<Mutex<Kcp<OutputPacketBuf>>>,
@@ -32,12 +32,9 @@ pub struct KcpSession {
 }
 
 impl KcpSession {
-    /// Creates a new `KcpSession` with the specified conversation ID and MTU. It initializes the KCP session with appropriate settings for low latency and high throughput, and it starts a background task to run the KCP state machine updates every 20 milliseconds.
+    /// Creates a new KCP session with the specified conversation ID and MTU.
     ///
-    /// # Example
-    /// ```rust
-    /// let session = KcpSession::new(123, 1400);
-    /// ```
+    /// Configures KCP for low latency and starts a background task for state machine updates.
     pub fn new(conv: u32, mtu: usize) -> Self {
         let output = OutputPacketBuf(Arc::new(Mutex::new(Vec::<Vec<u8>>::new())));
         let mut kcp = Kcp::new(conv, output.clone());
@@ -73,24 +70,19 @@ impl KcpSession {
         }
     }
 
-    /// Provides access to the underlying KCP session.
+    /// Returns a lock guard to the underlying KCP instance.
     fn kcp(&self) -> std::sync::MutexGuard<'_, Kcp<OutputPacketBuf>> {
         self.kcp_ptr.lock().unwrap()
     }
 
-    /// Provides access to the output packet buffer, which stores the packets that have been sent by KCP and are waiting to be delivered to the peer.
+    /// Returns a lock guard to the output packet buffer.
     fn output_packet_buf(&self) -> std::sync::MutexGuard<'_, Vec<Vec<u8>>> {
         self.output_packet_buf_ptr.0.lock().unwrap()
     }
 
-    /// Sends a message through the KCP session. If the message is larger than the MTU, it will be automatically fragmented into multiple packets. Each packet will have a 1-byte header indicating whether there are more packets to follow (1 for more packets, 0 for the last packet). The method ensures that all fragments of a message are sent together, and it returns an error if any send operation fails.
+    /// Sends a message, automatically fragmenting it if larger than MTU.
     ///
-    /// # Example
-    /// ```rust
-    /// let session = KcpSession::new(123, 1400);
-    /// let long_message = vec![b'A'; 5000];
-    /// session.send(&long_message).unwrap();
-    /// ```
+    /// Each fragment has a 1-byte header indicating if more fragments follow.
     pub fn send(&self, data: &[u8]) -> Result<()> {
         let max_data = (self.kcp().mss() * 127).saturating_sub(1).max(1);
         let chunks: Vec<&[u8]> = data.chunks(max_data).collect();
@@ -105,14 +97,9 @@ impl KcpSession {
         Ok(())
     }
 
-    /// Receives a complete message from the KCP session. It handles reassembly of fragmented messages by checking the 1-byte header of each received packet to determine if there are more packets to follow, therefore ensuring message of infinite length. The method returns `Some(Vec<u8>)` when a complete message has been received, or `None` if there are no complete messages available at the moment.
+    /// Receives a complete message, reassembling fragments as needed.
     ///
-    /// # Example
-    /// ```rust
-    /// let session = KcpSession::new(123, 1400);
-    /// if let Some(msg) = session.recv() {
-    ///    println!("Received: {}", String::from_utf8_lossy(&msg));
-    /// }
+    /// Returns `Some(Vec<u8>)` when a message is available, `None` otherwise.
     pub fn recv(&self) -> Option<Vec<u8>> {
         let mut recv_buf = self.recv_buf.lock().unwrap();
         loop {
@@ -133,15 +120,9 @@ impl KcpSession {
         None
     }
 
-    /// Polls the output packet buffer for any packets that have been sent by KCP and are waiting to be delivered to the peer. It returns `Some(Vec<u8>)` containing the next packet to be delivered, or `None` if there are no packets waiting to be delivered.
+    /// Polls the next output packet ready to send to the peer.
     ///
-    /// # Example
-    /// ```rust
-    /// let session = KcpSession::new(123, 1400);
-    /// session.send(b"Hello, World!").unwrap();
-    /// while let Some(packet) = session.poll_output_packet() {
-    ///    // send packet to peer
-    /// }
+    /// Returns `Some(Vec<u8>)` if a packet is available, `None` otherwise.
     pub fn poll_output_packet(&self) -> Option<Vec<u8>> {
         let mut output_buf = self.output_packet_buf();
         if output_buf.is_empty() {
@@ -151,20 +132,7 @@ impl KcpSession {
         }
     }
 
-    /// Inputs a received packet into the KCP session. This method should be called with packets that have been received from the peer, allowing the KCP session to process acknowledgments, handle retransmissions, and manage its internal state machine accordingly. It returns an error if the packet cannot be processed by KCP.
-    ///
-    /// # Example
-    /// ```rust
-    /// let session = KcpSession::new(123, 1400);
-    /// // receive packet from peer
-    /// let packet: Vec<u8> = vec![/* received packet data */];
-    /// session.input_packet(&packet).unwrap();
-    /// loop {
-    ///   if let Some(msg) = session.recv() {
-    ///     // process received message
-    ///   }
-    /// }
-    /// ```
+    /// Inputs a received packet into the KCP session.
     pub fn input_packet(&self, packet: &[u8]) -> Result<()> {
         self.kcp()
             .input(packet)
@@ -172,13 +140,7 @@ impl KcpSession {
         Ok(())
     }
 
-    /// Returns the conversation ID of the KCP session
-    ///
-    /// # Example
-    /// ```rust
-    /// let session = KcpSession::new(123, 1400);
-    /// assert_eq!(session.conv(), 123);
-    /// ```
+    /// Returns the conversation ID.
     pub fn conv(&self) -> u32 {
         self.kcp().conv()
     }
