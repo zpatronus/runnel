@@ -12,7 +12,7 @@ use tokio::{self, sync::broadcast, time};
 /// Prefix for NOOP messages used to keep the KCP session alive.
 const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 /// Interval for sending NOOP messages when idle.
-const NOOP_INTERVAL: Duration = Duration::from_millis(100);
+const NOOP_INTERVAL: Duration = Duration::from_millis(50);
 /// Interval for polling output packets.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
 /// Default timeout for cleaning up inactive server sessions.
@@ -157,7 +157,6 @@ impl RunnelClient {
         loop {
             if let Some(msg) = self.kcp_session.recv() {
                 if !is_noop_message(&msg) {
-                    let _ = self.send_noop();
                     let _ = self.send_noop();
                     return Some(msg);
                 }
