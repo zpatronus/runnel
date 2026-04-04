@@ -130,7 +130,11 @@ As you can see, two clients are talking to the server at the same time.
 
 #### Actually Deploying Server to be an Authoritative DNS Server
 
-TODO
+Similar to phase 1, you can deploy the server to be an actual authoritative DNS server for some domain.
+
+![](./assets/phase-2_client_server_public.png)
+
+As you can see, client requests are load balanced to use multiple public DNS servers.
 
 You can also try to communicate with `n.marky.top`. I will try my best to keep the authoritative server running. It runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) and freezes from time to time. Not the most stable server.
 
