@@ -46,7 +46,7 @@ For client:
 
 - If it has a packet to send, it sends the packet.
 - If it has no packet to send but the NOOP interval is reached, it sends 1 NOOP.
-- If it receives a meaningful packet, it sends 1 NOOP to allow the server to send more packets if it has.
+- If it receives a meaningful packet, it sends 2 NOOP to allow the server to send more packets if it has.
 
 For server (who can only, and must send a response for each request):
 
