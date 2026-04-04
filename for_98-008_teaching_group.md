@@ -30,3 +30,10 @@
 Advanced Rust
 
 - [x] Uses smart pointers: `Arc` in UDP server for shared socket.
+
+Other
+
+- [ ] Sufficiently complex (I guess? ): It feels as hard as the proxy lab if not harder. The DNS request-response nature makes it much more complex than what I previously expected. Check out the [Technical Notes](./DEVELOPERS.md) for challenges and design details.
+- [x] Passes rustfmt and clippy: Yes.
+- [x] Has a README.md explaining what it does and how to use it, and include some screenshots of it: Yes.
+- [x] Regular commits: Yes.
