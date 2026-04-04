@@ -12,7 +12,9 @@ This project is for educational purposes only. It is not intended to be used for
 
 For example, Oct 2025, Ramsay Leung posted in his blog [A Story About Bypassing Air Canada's In-flight Network Restrictions](https://ramsayleung.github.io/en/post/2025/a_story_about_bypassing_air_canadas_in-flight_network_restrictions/) that he successfully got free WiFi on Air Canada flights by tunneling his internet traffic through DNS queries and responses.
 
-For more technical details about this project, please refer to the [Technical Notes](./DEVELOPERS.md).
+For more implementation details about this project, please refer to the [Technical Notes](./DEVELOPERS.md).
+
+For more guidance on how to use this project, either as a binary or as a library, please refer to the following sections.
 
 ## Phase 1: Short Communication through DNS Tunnel
 
@@ -84,9 +86,87 @@ dig @1.1.1.1 GE4TENRQHAYTO.n.marky.top TXT
 
 ![](./assets/phase-1_dig_server_public.png)
 
+## Phase 2: Long Communication through DNS Tunnel
+
+In this phase, a binary, `long_communication`, is implemented to enable long communication through a DNS tunnel. `long` means messages of any length that can be transmitted in a reliable, ordered way.
+
+A module `runnel_session` is implemented to allow application developments on top of the DNS tunnel.
+
+### The Binary
+
+#### Usage
+
+A help message is provided for `long_communication`:
+
+```bash
+cargo run --bin long_communication -- -h
+```
+
+##### Server Mode
+
+To run it in server mode, provide the `-s` flag, the domain suffix, and optionally specify the port to listen on (default is 5353):
+
+```bash
+cargo run --bin long_communication -- -s -d example.com -p 10053
+```
+
+##### Client Mode
+
+To run it in client mode, provide the domain suffix and the DNS server address (the DNS server that the client will query, which can be a public DNS server or the server you just started locally in server mode):
+
+```bash
+cargo run --bin long_communication -- -d example.com -n 127.0.0.1:10053 -n 127.0.0.1:10053
+```
+
+Different from `short_communication`, `long_communication` allows user to specify multiple DNS servers in client mode, which can speed up the communication and also avoid potential rate limiting.
+
+#### Local Demonstration
+
+As a demonstration, the server responds with the capitalized message received from the client.
+
+![](./assets/phase-2_client_server.png)
+
+As you can see, two clients are talking to the server at the same time.
+
+#### Actually Deploying Server to be an Authoritative DNS Server
+
+TODO
+
 You can also try to communicate with `n.marky.top`. I will try my best to keep the authoritative server running. It runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) and freezes from time to time. Not the most stable server.
 
-## For Developers
+### The Library
+
+#### Usage
+
+The `runnel_session` module provides **ordered, reliable, message-based** transmission over a DNS tunnel. Message boundaries are preserved: each `send` corresponds to exactly one `recv`.
+
+##### Client
+
+```rust
+let mut client = RunnelClient::new(
+    vec!["8.8.8.8:53".to_string()],
+    "tunnel.example.com",
+).await?;
+
+client.send(b"hello")?;
+let reply: Option<Vec<u8>> = client.recv();
+```
+
+##### Server
+
+```rust
+let server = RunnelServer::new("0.0.0.0:53", "tunnel.example.com").await?;
+
+for conv in server.active_convs() {
+    if let Some(msg) = server.recv(conv) {
+        server.send(conv, b"reply")?;
+    }
+}
+```
+
+Each client session is identified by a `u32` conversation ID. The server multiplexes many clients over a single listening socket, each with its own ordered message stream. Retransmission, sequencing, and fragmentation are handled transparently by the underlying KCP protocol. See `long_communication.rs` for a working example of the full client-server exchange.
+
+## For Developers of `runnel`
 
 [Technical Notes](./DEVELOPERS.md)
 
