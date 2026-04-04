@@ -28,7 +28,7 @@ struct Args {
     port: u16,
 
     /// DNS server addresses to connect to (only for client mode, supports multiple for redundancy)
-    #[arg(short = 'n', long, default_values = ["8.8.8.8:53", "8.8.4.4:53"])]
+    #[arg(short = 'n', long, default_values = ["8.8.8.8:53", "8.8.4.4:53", "1.1.1.1:53", "1.0.0.1:53", "9.9.9.9:53", "149.112.112.112:53"])]
     dns: Vec<String>,
 
     /// Exit after sending/receiving one message (for testing)
