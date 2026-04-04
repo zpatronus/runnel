@@ -60,6 +60,7 @@ async fn run_server(args: Args) {
             server.send(&capitalized).expect("Failed to send response");
             println!("Sent: {}", String::from_utf8_lossy(&capitalized));
             if args.once {
+                time::sleep(Duration::from_millis(500)).await;
                 break;
             }
         }
