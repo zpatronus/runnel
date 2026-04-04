@@ -214,6 +214,9 @@ impl RunnelServer {
                     tokio::select! {
                         result = udp_server.recv() => {
                             if let Ok((data, reply)) = result && let Ok(decoded) = request_decoder.decode_packet(&data) {
+                                if decoded.len() < KCP_OVERHEAD {
+                                    continue;
+                                }
                                 let conv = get_conv(&decoded);
                                 let packet = {
                                     let mut state = sessions.lock().unwrap();
