@@ -249,7 +249,7 @@ impl RunnelServer {
                                         session.recent_packets.pop_front()
                                     }
                                 };
-                                let packet_to_send: &[u8] = packet.as_deref().unwrap_or(b"");
+                                let packet_to_send: &[u8] = packet.as_deref().unwrap_or(b"noop");
                                 if let Ok(encoded) = response_encoder.encode_packet(&data, packet_to_send) {
                                     let _ = reply.send(&encoded).await;
                                 }

@@ -95,6 +95,9 @@ async fn run_client(args: Args) -> Result<()> {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         let input = input.trim_end();
+        if input.is_empty() {
+            continue;
+        }
 
         client.send(input.as_bytes())?;
 

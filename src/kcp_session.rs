@@ -1,5 +1,5 @@
 //! KCP session providing ordered, reliable, message-based transmission with fragmentation support.
-use anyhow::Result;
+use anyhow::{Result, bail};
 use kcp::Kcp;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
@@ -84,6 +84,9 @@ impl KcpSession {
     ///
     /// Each fragment has a 1-byte header indicating if more fragments follow.
     pub fn send(&self, data: &[u8]) -> Result<()> {
+        if data.is_empty() {
+            bail!("Cannot send empty message");
+        }
         let max_data = (self.kcp().mss() * 127).saturating_sub(1).max(1);
         let chunks: Vec<&[u8]> = data.chunks(max_data).collect();
         for (i, chunk) in chunks.iter().enumerate() {
