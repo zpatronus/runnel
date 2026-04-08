@@ -142,7 +142,13 @@ Similar to phase 1, you can deploy the server to be an actual authoritative DNS 
 
 As you can see, client requests are load balanced to use multiple public DNS servers.
 
-You can also try to communicate with `n.marky.top`. I will try my best to keep the authoritative server running. It runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) and freezes from time to time. Not the most stable server.
+If you just want to test and make sure it works, you can redirect a file as input:
+
+```bash
+cat README.md | cargo run --bin long_communication -- -d n.marky.top
+```
+
+I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server.
 
 ### The Library
 
