@@ -96,6 +96,7 @@ async fn run_client(args: Args) -> Result<()> {
         std::io::stdin().read_line(&mut input)?;
         let input = input.trim_end();
         if input.is_empty() {
+            println!();
             continue;
         }
 
