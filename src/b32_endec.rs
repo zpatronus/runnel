@@ -21,7 +21,10 @@ impl B32DomainEndec {
     /// # Example
     /// ```
     /// use runnel::b32_endec::B32DomainEndec;
+    /// # fn main() -> anyhow::Result<()> {
     /// let endec = B32DomainEndec::new("example.com")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(suffix: &str) -> Result<Self> {
         let suffix_with_dot = if !suffix.ends_with(".") {
@@ -59,8 +62,11 @@ impl B32DomainEndec {
     /// # Example
     /// ```
     /// use runnel::b32_endec::B32DomainEndec;
+    /// # fn main() -> anyhow::Result<()> {
     /// let endec = B32DomainEndec::new("example.com")?;
     /// let domain = endec.encode(b"Hello, World!")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn encode(&self, data: &[u8]) -> Result<String> {
         let encoded =
@@ -94,8 +100,11 @@ impl B32DomainEndec {
     /// # Example
     /// ```
     /// use runnel::b32_endec::B32DomainEndec;
+    /// # fn main() -> anyhow::Result<()> {
     /// let endec = B32DomainEndec::new("example.com")?;
     /// let data = endec.decode("jbswy3dpfqqfo33snrscc.example.com.")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn decode(&self, domain: &str) -> Result<Vec<u8>> {
         let mut domain = domain.to_lowercase();

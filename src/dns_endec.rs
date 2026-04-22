@@ -34,7 +34,10 @@ impl DnsRequest {
     /// # Example
     /// ```
     /// use runnel::dns_endec::DnsRequest;
+    /// # fn main() -> anyhow::Result<()> {
     /// let encoder = DnsRequest::new("example.com")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(domain_suffix: &str) -> Result<Self> {
         let domain_suffix_with_dot = if !domain_suffix.ends_with(".") {
