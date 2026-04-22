@@ -9,6 +9,8 @@
 - Phase 1: Short Communication through DNS Tunnel
 - **Phase 2: Long Communication through DNS Tunnel (the fun part)**
 
+Quick link to play with an authoritative server deployed on the Internet: `n.marky.top`: [Jump to Section](#actually-deploying-server-to-be-an-authoritative-dns-server---long-communication-version)
+
 ## Disclaimer
 
 This project is for educational purposes only. It is not intended to be used for any malicious activities, such as bypassing network restrictions without permission. Always ensure that you have the necessary permissions before using or deploying any tools that can bypass network restrictions.
@@ -141,7 +143,7 @@ As a demonstration, the server responds with the capitalized message received fr
 
 As you can see, two clients are talking to the server at the same time.
 
-#### Actually Deploying Server to be an Authoritative DNS Server
+#### Actually Deploying Server to be an Authoritative DNS Server - Long Communication Version
 
 Similar to phase 1, you can deploy the server to be an actual authoritative DNS server for some domain.
 
