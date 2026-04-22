@@ -2,6 +2,13 @@
 
 # runnel - DNS Tunnel in Rust
 
+## Overview
+
+- Disclaimer
+- What is runnel and why you might be interested in it?
+- Phase 1: Short Communication through DNS Tunnel
+- **Phase 2: Long Communication through DNS Tunnel (the fun part)**
+
 ## Disclaimer
 
 This project is for educational purposes only. It is not intended to be used for any malicious activities, such as bypassing network restrictions without permission. Always ensure that you have the necessary permissions before using or deploying any tools that can bypass network restrictions.
@@ -148,7 +155,13 @@ If you just want to test and make sure it works, you can redirect a file as inpu
 cat README.md | cargo run --bin long_communication -- -d n.marky.top
 ```
 
-I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server.
+or input whatever you want (be aware of the caveat mentioned above about terminal line limit):
+
+```bash
+cargo run --bin long_communication -- -d n.marky.top
+```
+
+I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server. You can visit [https://runnelhealth.marky.top/](https://runnelhealth.marky.top/) to check the health status of the server.
 
 ### The Library
 
