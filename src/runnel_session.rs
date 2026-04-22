@@ -15,10 +15,13 @@ const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 const NOOP_INTERVAL: Duration = Duration::from_millis(20);
 /// Interval for polling output packets.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
-/// Maximum number of recent output packets to buffer per conversation for retransmission.
+/// Number of most recent packets to buffer for potential resending to new clients joining an existing session.
 const MAX_MOST_RECENT_PACKET: usize = 8;
+/// Number of times to resend each of the most recent packets to new clients joining an existing session.
 const MOST_RECENT_PACKET_RESEND_CNT: usize = 4;
-const MAX_MOST_RECENT_PACKET_BUFFER_SIZE: usize = MAX_MOST_RECENT_PACKET * MOST_RECENT_PACKET_RESEND_CNT;
+/// Maximum size of the buffer for the most recent packets.
+const MAX_MOST_RECENT_PACKET_BUFFER_SIZE: usize =
+    MAX_MOST_RECENT_PACKET * MOST_RECENT_PACKET_RESEND_CNT;
 /// Default timeout for cleaning up inactive server sessions.
 const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
