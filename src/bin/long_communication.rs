@@ -8,6 +8,7 @@ use clap::Parser;
 use runnel::runnel_session::{RunnelClient, RunnelServer};
 use std::io::Write;
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 use tokio::time;
 
 /// Command-line arguments. Supports multiple DNS servers for redundancy.
@@ -64,6 +65,17 @@ async fn run_server(args: Args) {
         .expect("Failed to start server");
 
     println!("Server listening on {}", bind_addr);
+
+    tokio::spawn(async {
+        let listner = tokio::net::TcpListener::bind("0.0.0.0:19268")
+            .await
+            .unwrap();
+        while let Ok((mut socket, _)) = listner.accept().await {
+            let _ = socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 24\r\n\r\nrunnel server is running")
+                .await;
+        }
+    });
 
     loop {
         time::sleep(Duration::from_millis(5)).await;
