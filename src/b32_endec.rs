@@ -20,6 +20,7 @@ impl B32DomainEndec {
     ///
     /// # Example
     /// ```
+    /// use runnel::b32_endec::B32DomainEndec;
     /// let endec = B32DomainEndec::new("example.com")?;
     /// ```
     pub fn new(suffix: &str) -> Result<Self> {
@@ -57,6 +58,8 @@ impl B32DomainEndec {
     ///
     /// # Example
     /// ```
+    /// use runnel::b32_endec::B32DomainEndec;
+    /// let endec = B32DomainEndec::new("example.com")?;
     /// let domain = endec.encode(b"Hello, World!")?;
     /// ```
     pub fn encode(&self, data: &[u8]) -> Result<String> {
@@ -90,6 +93,8 @@ impl B32DomainEndec {
     ///
     /// # Example
     /// ```
+    /// use runnel::b32_endec::B32DomainEndec;
+    /// let endec = B32DomainEndec::new("example.com")?;
     /// let data = endec.decode("jbswy3dpfqqfo33snrscc.example.com.")?;
     /// ```
     pub fn decode(&self, domain: &str) -> Result<Vec<u8>> {

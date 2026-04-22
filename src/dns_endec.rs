@@ -33,6 +33,7 @@ impl DnsRequest {
     ///
     /// # Example
     /// ```
+    /// use runnel::dns_endec::DnsRequest;
     /// let encoder = DnsRequest::new("example.com")?;
     /// ```
     pub fn new(domain_suffix: &str) -> Result<Self> {
