@@ -9,7 +9,9 @@
 - Phase 1: Short Communication through DNS Tunnel
 - **Phase 2: Long Communication through DNS Tunnel (the fun part)**
 
-Quick link to play with an authoritative server deployed on the Internet: `n.marky.top`: [Jump to Section](#actually-deploying-server-to-be-an-authoritative-dns-server---long-communication-version)
+Quick link to play with an authoritative server deployed on the Internet: `n.marky.top`: [Jump to Section](#actually-deploying-server-to-be-an-authoritative-dns-server---long-communication-version). The demo server's status is:
+
+![Status](https://runnel.openstatus.dev/badge/v2?theme=dark)
 
 ## Disclaimer
 
@@ -163,7 +165,9 @@ or input whatever you want (be aware of the caveat mentioned above about termina
 cargo run --bin long_communication -- -d n.marky.top
 ```
 
-I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server. You can visit [https://runnelhealth.marky.top/](https://runnelhealth.marky.top/) to check the health status of the server.
+I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server. You can visit [the status page](https://runnel.openstatus.dev/) to check the health status of the server. The current status is:
+
+![Status](https://runnel.openstatus.dev/badge/v2?theme=dark)
 
 ### The Library
 
