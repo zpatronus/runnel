@@ -2,7 +2,7 @@
 edition = "2024"
 license = "Apache-2.0"
 name = "runnel"
-version = "1.0.5"
+version = "1.0.6"
 
 [dependencies]
 anyhow = "1.0.102"

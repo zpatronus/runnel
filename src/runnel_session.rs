@@ -12,11 +12,13 @@ use tokio::{self, sync::broadcast, time};
 /// Prefix for NOOP messages used to keep the KCP session alive.
 const NOOP_MESSAGE: &[u8] = b"ff2f56ce-fa05-4c77-ba07-c17776d03db2";
 /// Interval for sending NOOP messages when idle.
-const NOOP_INTERVAL: Duration = Duration::from_millis(100);
+const NOOP_INTERVAL: Duration = Duration::from_millis(20);
 /// Interval for polling output packets.
 const POLL_INTERVAL: Duration = Duration::from_millis(1);
 /// Maximum number of recent output packets to buffer per conversation for retransmission.
 const MAX_MOST_RECENT_PACKET: usize = 8;
+const MOST_RECENT_PACKET_RESEND_CNT: usize = 4;
+const MAX_MOST_RECENT_PACKET_BUFFER_SIZE: usize = MAX_MOST_RECENT_PACKET * MOST_RECENT_PACKET_RESEND_CNT;
 /// Default timeout for cleaning up inactive server sessions.
 const DEFAULT_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -239,9 +241,11 @@ impl RunnelServer {
                                     let _ = session.kcp.input_packet(&decoded);
                                     if let Some(packet) = session.kcp.poll_output_packet() {
                                         if packet.len() > 60 {
-                                            session.recent_packets.push_back(packet.clone());
-                                            if session.recent_packets.len() > MAX_MOST_RECENT_PACKET {
-                                                session.recent_packets.pop_front();
+                                            for _ in 0..MOST_RECENT_PACKET_RESEND_CNT {
+                                                session.recent_packets.push_back(packet.clone());
+                                                if session.recent_packets.len() > MAX_MOST_RECENT_PACKET_BUFFER_SIZE {
+                                                    session.recent_packets.pop_front();
+                                                }
                                             }
                                         }
                                         Some(packet)
