@@ -11,7 +11,7 @@
 
 Quick link to play with an authoritative server deployed on the Internet: `n.marky.top`: [Jump to Section](#actually-deploying-server-to-be-an-authoritative-dns-server---long-communication-version). The demo server's status is:
 
-![](https://img.shields.io/uptimerobot/status/m802903909-39e7c0447aeb220604adc13e?up_message=up&down_message=down&style=flat-square&label=runnel%20demo)
+![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802903909-39e7c0447aeb220604adc13e?up_message=up&down_message=down&style=flat-square&label=runnel%20demo%20server&link=https%3A%2F%2Frunnelhealth.marky.top%2F)
 
 ## Disclaimer
 
@@ -167,7 +167,7 @@ cargo run --bin long_communication -- -d n.marky.top
 
 I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server. You can visit [the status page](https://runnelhealth.marky.top/) to check the health status of the server. The current status is:
 
-![](https://img.shields.io/uptimerobot/status/m802903909-39e7c0447aeb220604adc13e?up_message=up&down_message=down&style=flat-square&label=runnel%20demo)
+![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802903909-39e7c0447aeb220604adc13e?up_message=up&down_message=down&style=flat-square&label=runnel%20demo%20server&link=https%3A%2F%2Frunnelhealth.marky.top%2F)
 
 ### The Library
 
