@@ -2,6 +2,17 @@
 
 # runnel - DNS Tunnel in Rust
 
+## Overview
+
+- Disclaimer
+- What is runnel and why you might be interested in it?
+- Phase 1: Short Communication through DNS Tunnel
+- **Phase 2: Long Communication through DNS Tunnel (the fun part)**
+
+Quick link to play with an authoritative server deployed on the Internet: `n.marky.top`: [Jump to Section](#actually-deploying-server-to-be-an-authoritative-dns-server---long-communication-version). The demo server's status is:
+
+![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802903909-39e7c0447aeb220604adc13e?up_message=up&down_message=down&style=flat-square&label=runnel%20demo%20server&link=https%3A%2F%2Frunnelhealth.marky.top%2F)
+
 ## Disclaimer
 
 This project is for educational purposes only. It is not intended to be used for any malicious activities, such as bypassing network restrictions without permission. Always ensure that you have the necessary permissions before using or deploying any tools that can bypass network restrictions.
@@ -134,7 +145,7 @@ As a demonstration, the server responds with the capitalized message received fr
 
 As you can see, two clients are talking to the server at the same time.
 
-#### Actually Deploying Server to be an Authoritative DNS Server
+#### Actually Deploying Server to be an Authoritative DNS Server - Long Communication Version
 
 Similar to phase 1, you can deploy the server to be an actual authoritative DNS server for some domain.
 
@@ -148,7 +159,15 @@ If you just want to test and make sure it works, you can redirect a file as inpu
 cat README.md | cargo run --bin long_communication -- -d n.marky.top
 ```
 
-I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server.
+or input whatever you want (be aware of the caveat mentioned above about terminal line limit):
+
+```bash
+cargo run --bin long_communication -- -d n.marky.top
+```
+
+I will try my best to keep the authoritative server of `n.marky.top` running so you can also play with it. However, it runs on a [RISC-V dev board](https://wiki.sipeed.com/hardware/en/lichee/RV_Nano/1_intro.html) (256MB RAM, 1GHz single core CPU) and freezes from time to time. Not the most stable server. You can visit [the status page](https://runnelhealth.marky.top/) to check the health status of the server. The current status is:
+
+![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802903909-39e7c0447aeb220604adc13e?up_message=up&down_message=down&style=flat-square&label=runnel%20demo%20server&link=https%3A%2F%2Frunnelhealth.marky.top%2F)
 
 ### The Library
 
